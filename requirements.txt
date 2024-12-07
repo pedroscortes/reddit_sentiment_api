@@ -1,0 +1,22 @@
+# Core ML packages
+pandas
+numpy
+scikit-learn
+transformers
+torch
+praw  # for Reddit API
+
+# API and Web Framework
+fastapi
+uvicorn
+pydantic
+
+# MLOps and Monitoring
+mlflow
+python-dotenv
+pytest
+black  # for code formatting
+flake8  # for linting
+
+# Data processing
+nltk

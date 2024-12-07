@@ -1,0 +1,41 @@
+# Data files
+data/raw/
+data/processed/
+
+# Model files
+models/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# MLflow
+mlruns/
+
+# Logs
+logs/
+*.log
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development settings
+*.sqlite3
