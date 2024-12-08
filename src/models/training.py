@@ -16,9 +16,11 @@ import torch.nn as nn
 from datasets import Dataset
 import logging
 import os
+import json  # Add this import
 from datetime import datetime
 import mlflow
 from accelerate import Accelerator
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 class SentimentClassifier(nn.Module):
     def __init__(self, model_name, num_numerical_features):
         super().__init__()
-        # Load base BERT model without classification head
+        # Load base BERT model
         self.bert = AutoModel.from_pretrained(model_name)
         
         # Layer for numerical features
@@ -45,6 +47,9 @@ class SentimentClassifier(nn.Module):
             nn.Dropout(0.2),
             nn.Linear(256, 3)
         )
+        
+        # Loss function
+        self.loss_fct = nn.CrossEntropyLoss()
 
     def forward(self, input_ids=None, attention_mask=None, numerical_features=None, labels=None):
         # Get BERT outputs
@@ -66,18 +71,50 @@ class SentimentClassifier(nn.Module):
         # Get logits
         logits = self.classifier(combined_features)
         
-        # Calculate loss if labels provided
+        # Calculate loss
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, 3), labels.view(-1))
+            loss = self.loss_fct(logits, labels)
         
         return SequenceClassifierOutput(
             loss=loss,
-            logits=logits,
-            hidden_states=bert_outputs.hidden_states,
-            attentions=bert_outputs.attentions
+            logits=logits
         )
+
+    @classmethod
+    def from_pretrained(cls, model_path):
+        """Load a trained model from a directory."""
+        # Load config to get num_numerical_features
+        config_path = os.path.join(model_path, 'config.json')
+        if os.path.exists(config_path):
+            import json
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            num_numerical_features = config.get('num_numerical_features', 1006)
+        else:
+            num_numerical_features = 1006
+        
+        model = cls("distilbert-base-uncased", num_numerical_features)
+        
+        state_dict = torch.load(os.path.join(model_path, 'pytorch_model.bin'), map_location='cpu')
+        model.load_state_dict(state_dict)
+        
+        return model
+
+    def save_pretrained(self, save_path):
+        """Save the model to a directory."""
+        os.makedirs(save_path, exist_ok=True)
+        
+        torch.save(self.state_dict(), os.path.join(save_path, 'pytorch_model.bin'))
+        
+        config = {
+            'num_numerical_features': self.numerical_layer[0].in_features,
+            'model_type': 'sentiment_classifier',
+            'base_model': 'distilbert-base-uncased'
+        }
+        
+        with open(os.path.join(save_path, 'config.json'), 'w') as f:
+            json.dump(config, f)
 
 class SentimentModelTrainer:
     def __init__(self, model_name="distilbert-base-uncased", experiment_name="sentiment_analysis"):
@@ -87,12 +124,11 @@ class SentimentModelTrainer:
         self.accelerator = Accelerator()
         logger.info(f"Using device: {self.device}")
         
-        # Setup MLflow
         mlflow.set_tracking_uri("file:./mlruns")
         mlflow.set_experiment(experiment_name)
-    
+
     def prepare_data(self, data_path):
-        """Load and prepare data for training with engineered features."""
+        """Load and prepare data for training."""
         logger.info("Loading and preparing data...")
         
         df = pd.read_csv(data_path)
@@ -120,22 +156,25 @@ class SentimentModelTrainer:
         train_numerical = scaler.fit_transform(train_df[numerical_features].fillna(0))
         test_numerical = scaler.transform(test_df[numerical_features].fillna(0))
         
-        # Convert to torch tensors
-        train_numerical = torch.FloatTensor(train_numerical)
-        test_numerical = torch.FloatTensor(test_numerical)
-        
         # Create datasets
-        train_dataset = Dataset.from_dict({
-            'text': train_df[text_column].tolist(),
-            'label': train_df['label'].tolist(),
-            'numerical_features': train_numerical.tolist()
-        })
+        def create_dataset(texts, labels, numerical_feats):
+            return Dataset.from_dict({
+                'text': texts,
+                'label': labels,
+                'numerical_features': numerical_feats.tolist()
+            })
         
-        test_dataset = Dataset.from_dict({
-            'text': test_df[text_column].tolist(),
-            'label': test_df['label'].tolist(),
-            'numerical_features': test_numerical.tolist()
-        })
+        train_dataset = create_dataset(
+            train_df[text_column].tolist(),
+            train_df['label'].tolist(),
+            train_numerical
+        )
+        
+        test_dataset = create_dataset(
+            test_df[text_column].tolist(),
+            test_df['label'].tolist(),
+            test_numerical
+        )
         
         # Tokenize datasets
         def tokenize_function(examples):
@@ -154,7 +193,7 @@ class SentimentModelTrainer:
         logger.info(f"Number of numerical features: {len(numerical_features)}")
         
         return train_dataset, test_dataset, len(numerical_features)
-    
+
     def train_model(self, train_dataset, test_dataset, num_numerical_features, output_dir="models"):
         """Train model with both text and numerical features."""
         logger.info("Starting model training...")
@@ -191,14 +230,6 @@ class SentimentModelTrainer:
                 report_to="mlflow"
             )
             
-            # Log parameters
-            mlflow.log_params({
-                "model_name": self.model_name,
-                "num_epochs": training_args.num_train_epochs,
-                "batch_size": training_args.per_device_train_batch_size,
-                "num_numerical_features": num_numerical_features
-            })
-            
             # Initialize trainer
             trainer = Trainer(
                 model=model,
@@ -213,16 +244,11 @@ class SentimentModelTrainer:
             
             # Save final model
             final_model_path = os.path.join(model_dir, 'final_model')
-            trainer.save_model(final_model_path)
+            model.save_pretrained(final_model_path)
             self.tokenizer.save_pretrained(final_model_path)
             
-            # Log metrics
-            mlflow.log_metrics({
-                "training_loss": train_result.metrics["train_loss"],
-                "training_runtime": train_result.metrics["train_runtime"]
-            })
-            
             return model, trainer, final_model_path
+        
 
 def main():
     try:

@@ -1,0 +1,71 @@
+Error Analysis Report
+===================
+
+
+True: negative, Predicted: neutral
+Count: 192
+Example texts:
+1. This. I’ve been to a mental health facility, social media is NOT a thing there. This person is an asshole.
+2. Really setting the bar high for yourself there pal
+3. What is the likelihood of it happening in the social media age when op would've likely interacted with both on fb and can see the entire family tree
+--------------------------------------------------------------------------------
+
+True: negative, Predicted: positive
+Count: 1
+Example texts:
+1. Yeah! I think it's unfortunately a pretty common phenomena, because when you're in the relationship and can see all those good things, it's easy to take for granted that of course your friends and family see them too. And of course, most people vent to trusted friends and family about relationship disputes or frustrations because we trust them to listen and to either affirm or gently chastise us, and we even trust them to be a safe space to be Unfair sometimes, when it's like, "I *know* this isn't totally true and wouldn't be a fair thing to say to my partner, but I'm frustrated and need to get it out!" 
+
+But the flip side is that you have to make a point of also bringing up the good stuff, because otherwise all those trusted confidantes are gonna hear and remember about your partner is, "They treat you poorly and you fight all the time." When you achieve a good balance, you're also more likely to get actual honesty. Less, "You should leave them" and more, "I understand why you're frustrated and it's totally valid for you to feel that way... but I can also understand your partner's perspective and while the way they expressed it wasn't great, I really think you should also be self-reflecting a little to better understand why they reacted that way." 
+
+And if the relationship really IS one-sided or deadbeat or abusive, your friends and family will be the first to see it. And you'll believe them at least a little bit more when they tell you to leave, because you know that they've also heard and seen all the great stuff about your partner, so if they're still saying it's toxic, maybe they're onto something. That's how it went for me, anyway.
+--------------------------------------------------------------------------------
+
+True: neutral, Predicted: negative
+Count: 100
+Example texts:
+1. Not my bisexual revenge fantasy 😭
+2. I saw autocorrect did that, just didn’t bother to edit
+3. Don’t move. Divorce now. He can’t take care of kids in the military. Get full custody and move on
+--------------------------------------------------------------------------------
+
+True: neutral, Predicted: positive
+Count: 66
+Example texts:
+1. User u/Zergs1 felt like DMing this to me because he got triggered so hard by my post:
+
+>You say you push yourself and do dropsets, and your example is a 100 pound bench press? I mean, you’re obviously not strong enough to warrant the grunts you hear. You sound like an entitled brat thinking that people making noise while working out is “killing your flow!”
+
+He takes it a step further and even went and [tried to blast me on a completely unrelated post of mine](https://www.reddit.com/r/changemyview/comments/1gsot01/comment/lyly4wc/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button) on a different subreddit from a week ago; that's how mad he is about this post. Good lord.
+2. User u/Zergs1 felt like DMing this to me because he got triggered so hard by my post:
+
+>You say you push yourself and do dropsets, and your example is a 100 pound bench press? I mean, you’re obviously not strong enough to warrant the grunts you hear. You sound like an entitled brat thinking that people making noise while working out is “killing your flow!”
+
+He takes it a step further and even went and [tried to blast me on a completely unrelated post of mine](https://www.reddit.com/r/changemyview/comments/1gsot01/comment/lyly4wc/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button) on a different subreddit from a week ago; that's how mad he is about this post. Good lord.
+3. Here's the thing: he probably thinks about it at least somewhat, and you probably compare unfavorably to at least one of them.  The question is now - what do you do about it?  Going back to therapy is probably a good choice, but in addition I highly recommend getting hot and flirty.  I don't recommend actually cheating or anything, but I've found it personally healing to know that attractive people find me attractive, and the only thing keeping me from hitting that is my own personal choices, rather than anything inherently lacking about myself.
+--------------------------------------------------------------------------------
+
+True: positive, Predicted: neutral
+Count: 35
+Example texts:
+1. You're right that it's not absolutely black and white. That's why people hire attorneys to argue for a fairer split of marital assets if it ever becomes necessary to quantify it (like in a divorce). But by default a judge would generally split all marital assets down the middle even if one spouse has higher income than the other. They do often adjust for "earning potential" in situations where one spouse refuses to work (or work less than the other, or purposely take a low paying job despite having a higher earning potential) without making household contributions in some other way (like childcare). 
+
+In yours & your wife's situation though, it doesn't really matter that your wife chose to get a master's and you didn't. Unless you deliberately work less hours or otherwise deliberately forgo your earning potential (and don't make other contributions like childcare), a judge would most likely still combine all the wealth that you & your wife have accumulated since marriage into one giant pot and split it in half. The way to prevent this if you want to make another arrangement is to sign a prenup. Or, don't get married (no marriage, no marital property). Otherwise, what you earn is hers and what she earns is yours. A judge isn't going to say "you could have gotten a master's degree like your wife" because no one actually knows whether or not that's true. Your earning potential is based on your actual education and experience, not some theoretical degree that you could have possibly gotten.
+
+Also, your wife chose to marry someone who was not as financially ambitious as herself. That was her choice. No one has to get or stay married. If someone feels like their spouse is taking advantage of them, being selfish, unfair, lazy, or otherwise "unloving" by not contributing to their full potential, they're free to divorce them. Or sign a post-nup. Or come to a verbal agreement that everyone is satisfied with (which may get thrown out the window in a divorce court anyway). But unequal financial freedom/control shouldn't even be an option on the table here, which is what's happening in OP's case.
+
+The overall point is, the mere fact that they're married entitles her to his income, and if they both agreed that she should not work then most likely she's entitled to a full half. And that includes his individual accounts too like 401k etc. A judge would give her half of all the savings as well. Because that's what marriage is: sharing a life and being equal partners, even if one spouse earns more.
+
+Btw your wife _does_ get a return on your improved mental health. You share a life, everything that affects you affects her too. Maybe it doesn't lessen her career workload but it does lessen her emotional workload to have a happy spouse. You shouldn't have to pay for the privilege of your mental health, and if she decides to prioritize that for herself someday that's also her right. She's making the choice to grind to afford a certain lifestyle and she's also making the choice to be married to you knowing what your own career choices are. That doesn't necessarily mean she's entitled to more of your marital assets. You may be willing to take less than you're entitled to but that doesn't mean everyone else should be expected to do the same in their own marriages.
+
+(Btw I'm the higher earning spouse, so my bias if anything should be in the other direction).
+2. The industry I got into was pretty niche in the 2010's. It got to the point that news of anyone we worked with working at another company gets back to us with lightning speed--particularly if it's someone notorious like Jerk in this BORU.
+
+The guy in question got some great credentials on paper, a Master's Degree even, but in person, he is not good. He pulls down the blinds because the windows behind him shows a reflection of what he's actually doing on his work computer: play a Facebook game. He chose the right computers but the wrong software for his team (causing a lot of BSODs). He even prides himself as a running pro (though he doesn't look it) just because he bought the latest running gear; he even left his team behind by clocking out early so that he could train! Eventually, it got to the point that he resigned, though we all suspected it was forced because of the abysmal performance of his team.
+
+We later found out from the grapevine that he got another leadership-type role. The friend-of-a-friend who worked there mentioned that he's doing the same shit; he lasted about 2 years. The next two jobs he got, he pulled the same shit until he seemed to have decided that he's not good at it. The last I heard, he set up some kind of business.
+3. 🤦 enjoy the post divorced single life.
+
+This epic level failure.. to the point I wonder if OP isn't intentionally scuttling his own marriage?
+
+Who acts like this? Smh.
+--------------------------------------------------------------------------------
