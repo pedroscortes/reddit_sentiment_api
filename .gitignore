@@ -3,7 +3,9 @@ data/raw/
 data/processed/
 
 # Model files
-models/
+models/*
+!models/.gitkeep
+!src/models/
 
 # Python
 __pycache__/
