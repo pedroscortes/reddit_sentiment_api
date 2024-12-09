@@ -7,7 +7,6 @@ load_dotenv()
 
 def test_reddit_connection():
     try:
-
         reddit = praw.Reddit(
             client_id=os.getenv("REDDIT_CLIENT_ID"),
             client_secret=os.getenv("REDDIT_CLIENT_SECRET"),

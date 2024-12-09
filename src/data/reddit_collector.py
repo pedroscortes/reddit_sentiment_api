@@ -248,7 +248,6 @@ class RedditDataCollector:
                                             sentiment_counts[sentiment] < target_per_class
                                             and subreddit_counts[subreddit_name] < max_per_subreddit
                                         ):
-
                                             all_comments.append(
                                                 {
                                                     "comment_id": comment.id,

@@ -63,7 +63,6 @@ class LargeRedditCollector:
                                     and comment.body != "[deleted]"
                                     and comment.body != "[removed]"
                                 ):
-
                                     comment_data = {
                                         "comment_id": comment.id,
                                         "text": comment.body,
