@@ -48,13 +48,6 @@ jobs:
     - name: Run tests with pytest
       run: |
         pytest tests/ --cov=src/ --cov-report=xml
-    
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        fail_ci_if_error: true
 
     - name: Format specific files
       run: |
@@ -62,10 +55,20 @@ jobs:
         black --verbose src/data/collect_large_dataset.py
         black --verbose src/data/reddit_collector.py
   
+    - name: Run tests with pytest
+      run: |
+        pytest tests/ --cov=src/ --cov-report=xml
+
+    - name: Format specific files
+      run: |
+        black --verbose src/data/test_connection.py
+        black --verbose src/data/collect_large_dataset.py
+        black --verbose src/data/reddit_collector.py
+
     - name: Upload coverage reports to Codecov
-          uses: codecov/codecov-action@v3
-          with:
-            token: ${{ secrets.CODECOV_TOKEN }}
-            file: ./coverage.xml
-            flags: unittests
-            fail_ci_if_error: true
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests
+        fail_ci_if_error: true
