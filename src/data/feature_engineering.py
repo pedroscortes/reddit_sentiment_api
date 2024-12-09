@@ -27,7 +27,7 @@ class FeatureEngineer:
 
         # Punctuation features
         df["exclamation_count"] = df["text"].str.count("!")
-        df["question_count"] = df["text"].str.count("\?")
+        df["question_count"] = df["text"].str.count(r"\?")
         df["punctuation_count"] = df["text"].str.count("[.,!?;:]")
 
         # Capitalization features

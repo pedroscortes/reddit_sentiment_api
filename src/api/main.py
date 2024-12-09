@@ -48,7 +48,7 @@ class SubredditRequest(BaseModel):
 
 
 class RedditURLRequest(BaseModel):
-    url: str = Field(..., pattern="^https?://(?:www\.)?reddit\.com/.*$")
+    url: str = Field(..., pattern=r"^https?://(?:www\.)?reddit\.com/.*$")
 
 
 class UserRequest(BaseModel):

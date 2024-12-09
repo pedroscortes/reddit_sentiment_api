@@ -1,108 +1,205 @@
 # src/api/model_service.py
 
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-import numpy as np
-from transformers import AutoTokenizer
+from typing import List, Dict
 import logging
+from pydantic import BaseModel
 import os
-from src.models.training import SentimentClassifier
-from typing import Dict, List
-import joblib
+from src.models.model_registry import ModelRegistry
+from src.monitoring.model_monitor import ModelPerformanceMonitor
+from src.models.ab_testing import ABTestingManager
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class PredictionResponse(BaseModel):
+    sentiment: str
+    confidence: float
+    probabilities: Dict[str, float]
 
 class ModelService:
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = None
         self.tokenizer = None
-        self.scaler = None
-        self.id2label = {0: "negative", 1: "neutral", 2: "positive"}
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.labels = ["negative", "positive"]
+        
+        # Initialize new components
+        self.model_registry = ModelRegistry()
+        self.model_monitor = ModelPerformanceMonitor()
+        self.ab_testing = ABTestingManager()
+        self.current_model_id = None
 
     def load_model(self, model_path: str):
-        """Load the model and tokenizer."""
+        """Load model from path or use pretrained model."""
         try:
             logger.info(f"Loading model from {model_path}")
-            self.model = SentimentClassifier.from_pretrained(model_path).to(self.device)
+            start_time = self.model_monitor.start_prediction()
+
+            # Try loading from local path, fallback to pretrained
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+                self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
+            except:
+                # Fallback to a pretrained model
+                model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
+            self.model.to(self.device)
             self.model.eval()
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-            # Load scaler if available
-            scaler_path = os.path.join(model_path, "scaler.pkl")
-            if os.path.exists(scaler_path):
-                self.scaler = joblib.load(scaler_path)
+            load_time = self.model_monitor.end_prediction(start_time, "model_loading")
 
-            logger.info("Model loaded successfully")
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}")
-            raise RuntimeError(f"Failed to load model: {str(e)}")
+            # Register the model with basic metrics
+            metrics = {
+                "load_time": load_time,
+                "device": str(self.device)
+            }
 
-    def predict(self, text: str):
-        """Make a single prediction."""
-        if self.model is None:
-            raise RuntimeError("Model not loaded")
-
-        try:
-            # Tokenize input
-            inputs = self.tokenizer(text, padding=True, truncation=True, max_length=128, return_tensors="pt").to(self.device)
-
-            # Create dummy numerical features
-            numerical_features = torch.zeros((1, 1006)).to(self.device)
-
-            # Get prediction
-            with torch.no_grad():
-                outputs = self.model(**inputs, numerical_features=numerical_features)
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                prediction = torch.argmax(probabilities, dim=-1)
-                confidence = torch.max(probabilities).item()
-
-            # Convert probabilities to dict
-            prob_dict = {self.id2label[i]: prob.item() for i, prob in enumerate(probabilities[0])}
-
-            return type(
-                "PredictionResult",
-                (),
-                {"sentiment": self.id2label[prediction.item()], "confidence": confidence, "probabilities": prob_dict},
+            self.current_model_id = self.model_registry.register_model(
+                model_path=model_path,
+                model_name="sentiment_analyzer",
+                version=self._get_model_version(model_path),
+                metrics=metrics,
+                description="Sentiment analysis model based on DistilBERT"
             )
 
+            logger.info(f"Model loaded successfully. Model ID: {self.current_model_id}")
         except Exception as e:
-            logger.error(f"Error making prediction: {str(e)}")
-            raise RuntimeError(f"Prediction failed: {str(e)}")
+            logger.error(f"Error loading model: {str(e)}")
+            self.model_monitor.record_error("model_loading", str(type(e).__name__))
+            raise
 
-    def predict_batch(self, texts: List[str]):
-        """Make batch predictions."""
-        if self.model is None:
-            raise RuntimeError("Model not loaded")
+    def _get_model_version(self, model_path: str) -> str:
+        """Extract version from model path or generate a default one."""
+        try:
+            # Try to extract version from directory name
+            dir_name = os.path.basename(os.path.dirname(model_path))
+            if dir_name.startswith("sentiment_model_"):
+                return dir_name.split("_")[-1]
+        except:
+            pass
+        return "1.0.0"
+
+    def predict(self, text: str) -> PredictionResponse:
+        if not text.strip():
+            raise ValueError("Empty text provided")
+            
+        if not self.model or not self.tokenizer:
+            raise ValueError("Model not loaded")
+
+        start_time = self.model_monitor.start_prediction()
 
         try:
-            # Tokenize all texts
-            inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=128, return_tensors="pt").to(self.device)
+            inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-            # Create dummy numerical features
-            numerical_features = torch.zeros((len(texts), 1006)).to(self.device)
-
-            # Get predictions
             with torch.no_grad():
-                outputs = self.model(**inputs, numerical_features=numerical_features)
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                predictions = torch.argmax(probabilities, dim=-1)
-                confidences = torch.max(probabilities, dim=-1).values
+                outputs = self.model(**inputs)
+                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
 
-            # Convert to response format
-            responses = []
-            for pred, conf, probs in zip(predictions, confidences, probabilities):
-                prob_dict = {self.id2label[i]: prob.item() for i, prob in enumerate(probs)}
-                responses.append(
-                    type(
-                        "PredictionResult",
-                        (),
-                        {"sentiment": self.id2label[pred.item()], "confidence": conf.item(), "probabilities": prob_dict},
+            probs = probabilities[0].cpu().numpy()
+            pred_class = int(torch.argmax(probabilities, dim=1)[0])
+            confidence = float(probs[pred_class])
+            sentiment = self.labels[pred_class]
+
+            # Create response
+            response = PredictionResponse(
+                sentiment=sentiment,
+                confidence=confidence,
+                probabilities={label: float(prob) for label, prob in zip(self.labels, probs)}
+            )
+
+            # Record metrics
+            self.model_monitor.end_prediction(start_time, self.current_model_id)
+            self.model_monitor.record_prediction(
+                prediction=sentiment,
+                confidence=confidence,
+                model_version=self.current_model_id
+            )
+
+            return response
+
+        except Exception as e:
+            self.model_monitor.record_error(self.current_model_id, str(type(e).__name__))
+            raise
+
+    def predict_batch(self, texts: List[str]) -> List[PredictionResponse]:
+        """Make batch predictions with monitoring."""
+        if not self.model or not self.tokenizer:
+            raise ValueError("Model not loaded. Please load the model first.")
+
+        start_time = self.model_monitor.start_prediction()
+        responses = []
+
+        try:
+            # Process in batches
+            batch_size = 32
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i + batch_size]
+                
+                # Tokenize
+                inputs = self.tokenizer(batch_texts, 
+                                      return_tensors="pt", 
+                                      truncation=True, 
+                                      max_length=512, 
+                                      padding=True)
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+                # Predict
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                    probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
+
+                # Process each prediction in the batch
+                batch_probs = probabilities.cpu().numpy()
+                pred_classes = torch.argmax(probabilities, dim=1).cpu().numpy()
+
+                for j in range(len(batch_texts)):
+                    probs = batch_probs[j]
+                    pred_class = pred_classes[j]
+                    sentiment = self.labels[pred_class]
+                    confidence = float(probs[pred_class])
+
+                    response = PredictionResponse(
+                        sentiment=sentiment,
+                        confidence=confidence,
+                        probabilities={label: float(prob) for label, prob in zip(self.labels, probs)}
                     )
-                )
+                    responses.append(response)
 
+                    # Record metrics for each prediction
+                    self.model_monitor.record_prediction(
+                        prediction=sentiment,
+                        confidence=confidence,
+                        model_version=self.current_model_id
+                    )
+
+            # Record batch processing time
+            self.model_monitor.end_prediction(start_time, self.current_model_id)
+            
             return responses
 
         except Exception as e:
-            logger.error(f"Error making batch prediction: {str(e)}")
-            raise RuntimeError(f"Batch prediction failed: {str(e)}")
+            self.model_monitor.record_error(self.current_model_id, str(type(e).__name__))
+            logger.error(f"Error during batch prediction: {str(e)}")
+            raise
+
+    def get_model_performance(self) -> Dict:
+        """Get model performance metrics."""
+        return self.model_monitor.get_performance_metrics(self.current_model_id)
+
+    def get_model_info(self) -> Dict:
+        """Get current model information."""
+        if not self.current_model_id:
+            return {"status": "No model loaded"}
+            
+        return self.model_registry.get_model(self.current_model_id) or {
+            "name": "sentiment_analyzer",
+            "version": "1.0",
+            "status": "loaded",
+            "model_id": self.current_model_id
+        }

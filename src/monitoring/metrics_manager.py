@@ -47,18 +47,21 @@ class MetricsManager:
     def get_metrics(self):
         """Get current metrics."""
         self.update_system_metrics()
+        predict_count = self.request_counter.labels(endpoint="/predict", method="POST")._value.get()
+        batch_count = self.request_counter.labels(endpoint="/predict/batch", method="POST")._value.get()
+        
         return {
             "predictions": {
                 sentiment: self.prediction_counter.labels(sentiment=sentiment)._value.get()
                 for sentiment in ["positive", "negative", "neutral"]
             },
-            "system": {"memory_mb": psutil.Process().memory_info().rss / (1024 * 1024), "cpu_percent": psutil.cpu_percent()},
-            "requests": {
-                "total": sum(
-                    self.request_counter.labels(endpoint="/predict", method="POST")._value.get(),
-                    self.request_counter.labels(endpoint="/predict/batch", method="POST")._value.get(),
-                )
+            "system": {
+                "memory_mb": psutil.Process().memory_info().rss / (1024 * 1024),
+                "cpu_percent": psutil.cpu_percent()
             },
+            "requests": {
+                "total": float(predict_count + batch_count)
+            }
         }
 
 
