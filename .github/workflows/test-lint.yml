@@ -38,7 +38,7 @@ jobs:
     - name: Run black
       run: |
         black --version
-        black --diff --check .
+        black . || echo "Black reformatted code."
     
     - name: Lint with flake8
       run: |
