@@ -32,3 +32,9 @@ seaborn>=0.13.0
 # Utilities
 tqdm>=4.66.0
 emoji>=2.8.0
+
+# Development Dependencies
+black==23.12.1
+flake8==7.0.0
+pytest==7.4.3
+pytest-cov==4.1.0

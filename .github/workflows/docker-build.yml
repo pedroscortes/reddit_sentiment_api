@@ -27,7 +27,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v4
       with:
-        images: your-dockerhub-username/sentiment-analysis-api
+        images: pedroscortes/sentiment-analysis-api
         tags: |
           type=ref,event=branch
           type=ref,event=pr
