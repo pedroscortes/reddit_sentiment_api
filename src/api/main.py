@@ -3,14 +3,26 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
-import torch
-import numpy as np
-from transformers import AutoTokenizer
 import logging
 import os
-from src.models.training import SentimentClassifier
-from sklearn.preprocessing import StandardScaler
-import json
+from dotenv import load_dotenv
+from .model_service import ModelService
+from .reddit_analyzer import RedditAnalyzer
+from fastapi.responses import JSONResponse
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from src.monitoring.metrics import MetricsTracker
+from src.monitoring.metrics_manager import metrics_manager
+import psutil
+import time
+from prometheus_client import (
+    generate_latest, 
+    CONTENT_TYPE_LATEST,
+    Counter, 
+    Histogram,
+    Gauge
+)
+from starlette.responses import Response
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -30,133 +42,57 @@ class PredictionResponse(BaseModel):
 class BatchPredictionResponse(BaseModel):
     predictions: List[PredictionResponse]
 
-class ModelService:
-    def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = None
-        self.tokenizer = None
-        self.scaler = None
-        self.id2label = {0: 'negative', 1: 'neutral', 2: 'positive'}
-        
-    def load_model(self, model_path: str):
-        """Load the model and tokenizer."""
-        try:
-            logger.info(f"Loading model from {model_path}")
-            self.model = SentimentClassifier.from_pretrained(model_path).to(self.device)
-            self.model.eval()
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            
-            # Load scaler if available
-            scaler_path = os.path.join(model_path, 'scaler.pkl')
-            if os.path.exists(scaler_path):
-                import joblib
-                self.scaler = joblib.load(scaler_path)
-            
-            logger.info("Model loaded successfully")
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}")
-            raise RuntimeError(f"Failed to load model: {str(e)}")
+class SubredditRequest(BaseModel):
+    subreddit: str
+    time_filter: str = Field(
+        default="week", 
+        pattern="^(hour|day|week|month|year|all)$"
+    )
+    post_limit: int = Field(default=100, ge=1, le=500)
 
-    def predict(self, text: str) -> PredictionResponse:
-        """Make a single prediction."""
-        if self.model is None:
-            raise RuntimeError("Model not loaded")
-            
-        try:
-            # Tokenize input
-            inputs = self.tokenizer(
-                text,
-                padding=True,
-                truncation=True,
-                max_length=128,
-                return_tensors="pt"
-            ).to(self.device)
-            
-            # Create dummy numerical features
-            numerical_features = torch.zeros((1, 1006)).to(self.device)  # Adjust size based on your model
-            
-            # Get prediction
-            with torch.no_grad():
-                outputs = self.model(**inputs, numerical_features=numerical_features)
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                prediction = torch.argmax(probabilities, dim=-1)
-                confidence = torch.max(probabilities).item()
-            
-            # Convert probabilities to dict
-            prob_dict = {
-                self.id2label[i]: prob.item()
-                for i, prob in enumerate(probabilities[0])
-            }
-            
-            return PredictionResponse(
-                sentiment=self.id2label[prediction.item()],
-                confidence=confidence,
-                probabilities=prob_dict
-            )
-            
-        except Exception as e:
-            logger.error(f"Error making prediction: {str(e)}")
-            raise RuntimeError(f"Prediction failed: {str(e)}")
+class RedditURLRequest(BaseModel):
+    url: str = Field(
+        ..., 
+        pattern="^https?://(?:www\.)?reddit\.com/.*$"
+    )
 
-    def predict_batch(self, texts: List[str]) -> List[PredictionResponse]:
-        """Make batch predictions."""
-        if self.model is None:
-            raise RuntimeError("Model not loaded")
-            
-        try:
-            # Tokenize all texts
-            inputs = self.tokenizer(
-                texts,
-                padding=True,
-                truncation=True,
-                max_length=128,
-                return_tensors="pt"
-            ).to(self.device)
-            
-            # Create dummy numerical features
-            numerical_features = torch.zeros((len(texts), 1006)).to(self.device)
-            
-            # Get predictions
-            with torch.no_grad():
-                outputs = self.model(**inputs, numerical_features=numerical_features)
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                predictions = torch.argmax(probabilities, dim=-1)
-                confidences = torch.max(probabilities, dim=-1).values
-            
-            # Convert to response format
-            responses = []
-            for pred, conf, probs in zip(predictions, confidences, probabilities):
-                prob_dict = {
-                    self.id2label[i]: prob.item()
-                    for i, prob in enumerate(probs)
-                }
-                responses.append(
-                    PredictionResponse(
-                        sentiment=self.id2label[pred.item()],
-                        confidence=conf.item(),
-                        probabilities=prob_dict
-                    )
-                )
-            
-            return responses
-            
-        except Exception as e:
-            logger.error(f"Error making batch prediction: {str(e)}")
-            raise RuntimeError(f"Batch prediction failed: {str(e)}")
+class UserRequest(BaseModel):
+    username: str
+    limit: int = Field(default=50, ge=1, le=200)
+
+class TrendRequest(BaseModel):
+    keyword: str = Field(..., min_length=1, max_length=100)
+    subreddits: List[str] = Field(..., min_items=1, max_items=5)
+    time_filter: str = Field(
+        default="week", 
+        pattern="^(hour|day|week|month|year|all)$"
+    )
+    limit: int = Field(default=100, ge=1, le=500)
 
 # Initialize FastAPI app
-app = FastAPI(
-    title="Reddit Sentiment Analysis API",
-    description="API for predicting sentiment in text using a fine-tuned BERT model",
-    version="1.0.0"
-)
+app = FastAPI(title="Reddit Sentiment Analysis API")
 
-# Initialize model service
+# Initialize services
 model_service = ModelService()
+reddit_analyzer = None
+metrics = MetricsTracker()
 
+@app.get("/metrics")
+async def metrics():
+    return Response(
+        generate_latest(metrics_manager.registry),
+        media_type=CONTENT_TYPE_LATEST
+    )
+
+@app.get("/monitoring/metrics")
+async def monitoring_metrics():
+    """Get current monitoring metrics."""
+    return metrics_manager.get_metrics()
+    
 @app.on_event("startup")
 async def startup_event():
-    """Load model on startup."""
+    """Load model and initialize services on startup."""
+    global reddit_analyzer
     try:
         # Get latest model
         model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
@@ -165,6 +101,12 @@ async def startup_event():
         
         # Load model
         model_service.load_model(model_path)
+        
+        # Initialize Reddit analyzer
+        reddit_analyzer = RedditAnalyzer(model_service)
+        
+        # Load environment variables
+        load_dotenv()
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
         raise RuntimeError(f"Failed to start application: {str(e)}")
@@ -178,12 +120,29 @@ async def root():
         "status": "active"
     }
 
-@app.post("/predict", response_model=PredictionResponse)
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    if model_service.model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    return {"status": "healthy"}
+
+@app.post("/predict")
 async def predict(input_data: TextInput):
     """Predict sentiment for a single text."""
+    start_time = time.time()
+    
     try:
-        return model_service.predict(input_data.text)
+        metrics_manager.track_request("/predict", "POST")
+        result = model_service.predict(input_data.text)
+        metrics_manager.track_prediction(result.sentiment)
+        
+        duration = time.time() - start_time
+        metrics_manager.track_latency("/predict", duration)
+        
+        return result
     except Exception as e:
+        metrics_manager.track_latency("/predict_error", time.time() - start_time)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
@@ -195,12 +154,62 @@ async def predict_batch(input_data: BatchInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    if model_service.model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"status": "healthy"}
+@app.post("/analyze/subreddit")
+async def analyze_subreddit(request: SubredditRequest):
+    """Analyze sentiment patterns in a subreddit."""
+    try:
+        return await reddit_analyzer.analyze_subreddit(
+            request.subreddit,
+            request.time_filter,
+            request.post_limit
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze/url")
+async def analyze_url(request: RedditURLRequest):
+    """Analyze sentiment from a Reddit URL."""
+    try:
+        return await reddit_analyzer.analyze_url(request.url)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze/user")
+async def analyze_user(request: UserRequest):
+    """Analyze sentiment patterns of a user's comments."""
+    try:
+        return await reddit_analyzer.analyze_user(
+            request.username,
+            request.limit
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze/trend")
+async def analyze_trend(request: TrendRequest):
+    """Analyze sentiment trends around specific keywords."""
+    try:
+        logger.info(f"Received trend analysis request for keyword: {request.keyword} "
+                   f"in subreddits: {request.subreddits}")
+        
+        result = await reddit_analyzer.analyze_trend(
+            request.keyword,
+            request.subreddits,
+            request.time_filter,
+            request.limit
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error in analyze_trend endpoint: {str(e)}", exc_info=True)
+        # Return a more detailed error response
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal Server Error",
+                "detail": str(e),
+                "path": "/analyze/trend"
+            }
+        )
 
 if __name__ == "__main__":
     import uvicorn
