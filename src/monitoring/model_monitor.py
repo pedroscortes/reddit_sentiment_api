@@ -7,11 +7,10 @@ import numpy as np
 from prometheus_client import Histogram, Counter, Gauge, CollectorRegistry
 
 class ModelPerformanceMonitor:
-    def __init__(self):
-        # Create a custom registry for this instance
-        self.registry = CollectorRegistry()
+    def __init__(self, registry=None):
+        self.registry = registry or CollectorRegistry()
         
-        # Initialize metrics with the custom registry
+        # Initialize prometheus metrics
         self.inference_time = Histogram(
             'model_inference_time_seconds',
             'Time spent on model inference',
@@ -27,14 +26,7 @@ class ModelPerformanceMonitor:
             registry=self.registry
         )
         
-        self.predictions_total = Counter(
-            'model_predictions_total',
-            'Total number of predictions',
-            ['model_version', 'prediction'],
-            registry=self.registry
-        )
-        
-        self.model_errors = Counter(
+        self.error_counter = Counter(
             'model_errors_total',
             'Total number of model errors',
             ['model_version', 'error_type'],
@@ -44,73 +36,83 @@ class ModelPerformanceMonitor:
         # Performance tracking
         self.performance_window = 1000
         self._predictions = []
-        self._inference_times = []
-        
+        self._confidence_scores = []
+        self._errors = {}
+        self._start_times = {}
+
     def start_prediction(self) -> float:
         """Start timing a prediction."""
-        return time.time()
-    
+        start_time = time.time()
+        return start_time
+
     def end_prediction(self, start_time: float, model_version: str) -> float:
         """End timing a prediction and record it."""
         duration = time.time() - start_time
         self.inference_time.labels(model_version=model_version).observe(duration)
-        self._inference_times.append(duration)
-        if len(self._inference_times) > self.performance_window:
-            self._inference_times.pop(0)
         return duration
-    
-    def record_prediction(self, 
-                         prediction: str,
-                         confidence: float,
-                         model_version: str):
-        """Record a model prediction and its confidence."""
+
+    def record_prediction(self, prediction: str, confidence: float, model_version: str):
+        """Record a prediction and its confidence."""
+        self._predictions.append({
+            'prediction': prediction,
+            'confidence': confidence,
+            'timestamp': time.time()
+        })
+        self._confidence_scores.append(confidence)
+        
+        # Trim if exceeded window
+        if len(self._predictions) > self.performance_window:
+            self._predictions.pop(0)
+            self._confidence_scores.pop(0)
+        
+        # Update prometheus metrics
         self.prediction_confidence.labels(
             model_version=model_version,
             prediction=prediction
         ).observe(confidence)
-        
-        self.predictions_total.labels(
-            model_version=model_version,
-            prediction=prediction
-        ).inc()
-        
-        self._predictions.append({
-            'prediction': prediction,
-            'confidence': confidence,
-            'timestamp': datetime.now().isoformat(),
-            'model_version': model_version
-        })
-        
-        if len(self._predictions) > self.performance_window:
-            self._predictions.pop(0)
-    
+
     def record_error(self, model_version: str, error_type: str):
         """Record a model error."""
-        self.model_errors.labels(
+        self.error_counter.labels(
             model_version=model_version,
             error_type=error_type
         ).inc()
-    
+        
+        if error_type not in self._errors:
+            self._errors[error_type] = 0
+        self._errors[error_type] += 1
+
     def get_performance_metrics(self, model_version: str = None) -> Dict:
-        """Get performance metrics for a specific model version."""
-        predictions = (
-            self._predictions if model_version is None else
-            [p for p in self._predictions if p['model_version'] == model_version]
-        )
-        
-        if not predictions:
-            return {}
-        
-        confidences = [p['confidence'] for p in predictions]
-        prediction_counts = {}
-        for p in predictions:
-            prediction_counts[p['prediction']] = prediction_counts.get(p['prediction'], 0) + 1
-            
-        return {
-            'total_predictions': len(predictions),
-            'avg_confidence': np.mean(confidences),
-            'median_confidence': np.median(confidences),
-            'prediction_distribution': prediction_counts,
-            'avg_inference_time': np.mean(self._inference_times),
-            'p95_inference_time': np.percentile(self._inference_times, 95)
+        """Get performance metrics."""
+        metrics = {
+            'total_predictions': len(self._predictions),
+            'error_count': sum(self._errors.values()),
+            'errors_by_type': self._errors.copy()
         }
+        
+        if self._confidence_scores:
+            metrics.update({
+                'avg_confidence': float(np.mean(self._confidence_scores)),
+                'median_confidence': float(np.median(self._confidence_scores)),
+                'min_confidence': float(np.min(self._confidence_scores)),
+                'max_confidence': float(np.max(self._confidence_scores))
+            })
+        else:
+            metrics.update({
+                'avg_confidence': 0.0,
+                'median_confidence': 0.0,
+                'min_confidence': 0.0,
+                'max_confidence': 0.0
+            })
+            
+        if self._predictions:
+            prediction_counts = {}
+            for p in self._predictions:
+                pred = p['prediction']
+                if pred not in prediction_counts:
+                    prediction_counts[pred] = 0
+                prediction_counts[pred] += 1
+            metrics['prediction_distribution'] = prediction_counts
+            metrics['prediction_history'] = self._predictions[-10:]  # Last 10 predictions
+            
+        return metrics

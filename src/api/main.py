@@ -16,19 +16,51 @@ import psutil
 import time
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram, Gauge
 from starlette.responses import Response
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events manager for FastAPI."""
+    try:
+        # Get latest model
+        model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
+        latest_model = max(model_dirs)
+        model_path = os.path.join('models', latest_model, 'final_model')
+        
+        # Load model
+        model_service.load_model(model_path)
+        
+        # Initialize Reddit analyzer
+        global reddit_analyzer
+        reddit_analyzer = RedditAnalyzer(model_service)
+        
+        # Load environment variables
+        load_dotenv()
+        
+        yield
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+        raise RuntimeError(f"Failed to start application: {str(e)}")
+    finally:
+        # Cleanup code (if any) goes here
+        pass
 
 class TextInput(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
 
 
 class BatchInput(BaseModel):
-    texts: List[str] = Field(..., min_items=1, max_items=100)
+    texts: List[str] = Field(
+        ..., 
+        min_length=1,  # Instead of min_items
+        max_length=100  # Instead of max_items
+    )
 
 
 class PredictionResponse(BaseModel):
@@ -43,7 +75,10 @@ class BatchPredictionResponse(BaseModel):
 
 class SubredditRequest(BaseModel):
     subreddit: str
-    time_filter: str = Field(default="week", pattern="^(hour|day|week|month|year|all)$")
+    time_filter: str = Field(
+        default="week", 
+        pattern="^(hour|day|week|month|year|all)$"
+    )
     post_limit: int = Field(default=100, ge=1, le=500)
 
 
@@ -58,13 +93,23 @@ class UserRequest(BaseModel):
 
 class TrendRequest(BaseModel):
     keyword: str = Field(..., min_length=1, max_length=100)
-    subreddits: List[str] = Field(..., min_items=1, max_items=5)
-    time_filter: str = Field(default="week", pattern="^(hour|day|week|month|year|all)$")
+    subreddits: List[str] = Field(
+        ..., 
+        min_length=1,  # Instead of min_items
+        max_length=5   # Instead of max_items
+    )
+    time_filter: str = Field(
+        default="week", 
+        pattern="^(hour|day|week|month|year|all)$"
+    )
     limit: int = Field(default=100, ge=1, le=500)
 
 
 # Initialize FastAPI app
-app = FastAPI(title="Reddit Sentiment Analysis API")
+app = FastAPI(
+    title="Reddit Sentiment Analysis API",
+    lifespan=lifespan
+)
 
 # Initialize services
 model_service = ModelService()
@@ -83,28 +128,32 @@ async def monitoring_metrics():
     return metrics_manager.get_metrics()
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Load model and initialize services on startup."""
-    global reddit_analyzer
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events manager for FastAPI."""
     try:
         # Get latest model
-        model_dirs = [d for d in os.listdir("models") if d.startswith("sentiment_model_")]
+        model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
         latest_model = max(model_dirs)
-        model_path = os.path.join("models", latest_model, "final_model")
-
+        model_path = os.path.join('models', latest_model, 'final_model')
+        
         # Load model
         model_service.load_model(model_path)
-
+        
         # Initialize Reddit analyzer
+        global reddit_analyzer
         reddit_analyzer = RedditAnalyzer(model_service)
-
+        
         # Load environment variables
         load_dotenv()
+        
+        yield
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
         raise RuntimeError(f"Failed to start application: {str(e)}")
-
+    finally:
+        # Cleanup code (if any) goes here
+        pass
 
 @app.get("/")
 async def root():

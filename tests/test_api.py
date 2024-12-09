@@ -6,8 +6,32 @@ from src.api.main import app
 import asyncio
 from unittest.mock import Mock, AsyncMock
 
+pytestmark = pytest.mark.asyncio
+
 @pytest.fixture
 def client():
+    """Create test client with mocked dependencies."""
+    # Mock the dependencies before creating client
+    app.state.model_service = Mock()
+    app.state.model_service.model = Mock()
+    app.state.model_service.predict.return_value = {
+        "sentiment": "positive",
+        "confidence": 0.95,
+        "probabilities": {"positive": 0.95, "negative": 0.05}
+    }
+
+    app.state.reddit_analyzer = Mock()
+    app.state.reddit_analyzer.analyze_url = AsyncMock(return_value={
+        "sentiment": "positive",
+        "confidence": 0.85,
+        "text": "Test comment",
+        "metadata": {
+            "post_title": "Test Post",
+            "subreddit": "python",
+            "created_utc": "2024-01-01"
+        }
+    })
+
     with TestClient(app) as client:
         yield client
 
@@ -58,19 +82,53 @@ def mock_reddit_analyzer():
     return analyzer
 
 @pytest.mark.asyncio
-async def test_analyze_url_endpoint(client, mock_reddit_analyzer, monkeypatch):
+async def test_analyze_url_endpoint(client, monkeypatch):
     """Test the URL analysis endpoint."""
-    # Patch the analyzer in the app
-    monkeypatch.setattr("src.api.main.reddit_analyzer", mock_reddit_analyzer)
+    mock_response = {
+        "comments": [
+            {
+                "confidence": 0.98,
+                "is_op": False,
+                "score": 7,
+                "sentiment": "negative"
+            }
+        ],
+        "comments_analyzed": 1,
+        "overall_sentiment": {
+            "negative": 81.25,
+            "positive": 18.75
+        },
+        "post": {
+            "confidence": 0.96,
+            "score": 14,
+            "sentiment": "negative",
+            "title": "Test Post"
+        }
+    }
+
+    # Create mock analyzer
+    mock_analyzer = Mock()
+    mock_analyzer.analyze_url = AsyncMock(return_value=mock_response)
     
+    # Replace the reddit_analyzer instance in the app
+    app.state.reddit_analyzer = mock_analyzer
+
     test_input = {
-        "url": "https://www.reddit.com/r/python/comments/example"
+        "url": "https://www.reddit.com/r/python/comments/123abc/test_post"
     }
     response = client.post("/analyze/url", json=test_input)
     
     assert response.status_code == 200
     result = response.json()
-    assert "sentiment" in result
+    
+    # Updated assertions to match actual response structure
+    assert "comments" in result
+    assert "comments_analyzed" in result
+    assert "overall_sentiment" in result
+    assert "post" in result
+    assert result["post"]["sentiment"] in ["positive", "negative"]
+    assert isinstance(result["comments_analyzed"], int)
+    assert all(key in result["overall_sentiment"] for key in ["positive", "negative"])
 
 def test_root_endpoint(client):
     """Test the root endpoint."""
@@ -122,37 +180,6 @@ def test_analyze_subreddit_endpoint(client):
     assert response.status_code == 200
     result = response.json()
     assert "sentiment_distribution" in result
-
-def test_analyze_url_endpoint(client, monkeypatch):
-    """Test the URL analysis endpoint."""
-    # Create mock analyzer with an async method
-    class MockRedditAnalyzer:
-        async def analyze_url(self, url):
-            return {
-                "sentiment": "positive",
-                "confidence": 0.85,
-                "text": "Test comment",
-                "analysis": {
-                    "sentiment_scores": {
-                        "positive": 0.85,
-                        "negative": 0.15
-                    }
-                }
-            }
-    
-    # Replace the reddit_analyzer instance in the app
-    monkeypatch.setattr("src.api.main.reddit_analyzer", MockRedditAnalyzer())
-
-    test_input = {
-        "url": "https://www.reddit.com/r/python/comments/123abc/test_post"
-    }
-    response = client.post("/analyze/url", json=test_input)
-    
-    assert response.status_code == 200
-    result = response.json()
-    assert "sentiment" in result
-    assert "confidence" in result
-    assert result["sentiment"] == "positive"
 
 def test_analyze_user_endpoint(client):
     """Test the user analysis endpoint."""
