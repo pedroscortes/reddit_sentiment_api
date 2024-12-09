@@ -37,7 +37,8 @@ jobs:
     
     - name: Run black
       run: |
-        black . --check
+        black --version
+        black --diff --check .
     
     - name: Lint with flake8
       run: |
@@ -54,3 +55,9 @@ jobs:
         file: ./coverage.xml
         flags: unittests
         fail_ci_if_error: true
+
+    - name: Format specific files
+      run: |
+        black --verbose src/data/test_connection.py
+        black --verbose src/data/collect_large_dataset.py
+        black --verbose src/data/reddit_collector.py
