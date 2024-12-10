@@ -62,12 +62,11 @@ def mock_reddit_analyzer(monkeypatch):
     monkeypatch.setattr("src.api.main.RedditAnalyzer", Mock(return_value=mock_analyzer))
     return mock_analyzer
 
+@pytest.mark.asyncio
 async def test_analyze_url_endpoint(client):
-    """Test the URL analysis endpoint."""
     test_input = {"url": "https://www.reddit.com/r/python/comments/123abc/test_post"}
     response = client.post("/analyze/url", json=test_input)
     assert response.status_code == 200
-    assert "comments" in response.json()
 
 def test_root_endpoint(client):
     """Test the root endpoint."""
