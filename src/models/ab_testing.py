@@ -21,7 +21,6 @@ class ABTestingManager:
                     variants: List[ModelVariant],
                     description: str = ""):
         """Create a new A/B test."""
-        # Normalize weights
         total_weight = sum(v.weight for v in variants)
         normalized_variants = [
             ModelVariant(v.model_id, v.weight/total_weight)

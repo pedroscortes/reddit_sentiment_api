@@ -37,21 +37,17 @@ class ModelRegistry:
                       metrics: Dict[str, float],
                       description: str = "") -> str:
         """Register a new model version."""
-        # Generate model ID
         model_id = f"{model_name}_v{version}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        # Create model directory
         model_dir = os.path.join(self.registry_path, model_id)
         os.makedirs(model_dir, exist_ok=True)
 
-        # Copy model files
         target_path = os.path.join(model_dir, "model")
         if os.path.isdir(model_path):
             shutil.copytree(model_path, target_path, dirs_exist_ok=True)
         else:
             shutil.copy2(model_path, target_path)
 
-        # Update metadata
         metadata = self._load_metadata()
         metadata[model_id] = {
             "name": model_name,

@@ -10,7 +10,6 @@ from src.models.model_registry import ModelRegistry
 from src.monitoring.model_monitor import ModelPerformanceMonitor
 from src.models.ab_testing import ABTestingManager
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,6 @@ class ModelService:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.labels = ["negative", "positive"]
         
-        # Initialize new components
         self.model_registry = ModelRegistry()
         self.model_monitor = ModelPerformanceMonitor()
         self.ab_testing = ABTestingManager()
@@ -38,12 +36,10 @@ class ModelService:
             logger.info(f"Loading model from {model_path}")
             start_time = self.model_monitor.start_prediction()
 
-            # Try loading from local path, fallback to pretrained
             try:
                 self.tokenizer = AutoTokenizer.from_pretrained(model_path)
                 self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
             except:
-                # Fallback to a pretrained model
                 model_name = "distilbert-base-uncased-finetuned-sst-2-english"
                 self.tokenizer = AutoTokenizer.from_pretrained(model_name)
                 self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
@@ -53,7 +49,6 @@ class ModelService:
 
             load_time = self.model_monitor.end_prediction(start_time, "model_loading")
 
-            # Register the model with basic metrics
             metrics = {
                 "load_time": load_time,
                 "device": str(self.device)
@@ -76,7 +71,6 @@ class ModelService:
     def _get_model_version(self, model_path: str) -> str:
         """Extract version from model path or generate a default one."""
         try:
-            # Try to extract version from directory name
             dir_name = os.path.basename(os.path.dirname(model_path))
             if dir_name.startswith("sentiment_model_"):
                 return dir_name.split("_")[-1]
@@ -106,14 +100,12 @@ class ModelService:
             confidence = float(probs[pred_class])
             sentiment = self.labels[pred_class]
 
-            # Create response
             response = PredictionResponse(
                 sentiment=sentiment,
                 confidence=confidence,
                 probabilities={label: float(prob) for label, prob in zip(self.labels, probs)}
             )
 
-            # Record metrics
             self.model_monitor.end_prediction(start_time, self.current_model_id)
             self.model_monitor.record_prediction(
                 prediction=sentiment,
@@ -136,12 +128,10 @@ class ModelService:
         responses = []
 
         try:
-            # Process in batches
             batch_size = 32
             for i in range(0, len(texts), batch_size):
                 batch_texts = texts[i:i + batch_size]
                 
-                # Tokenize
                 inputs = self.tokenizer(batch_texts, 
                                       return_tensors="pt", 
                                       truncation=True, 
@@ -149,12 +139,10 @@ class ModelService:
                                       padding=True)
                 inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-                # Predict
                 with torch.no_grad():
                     outputs = self.model(**inputs)
                     probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
 
-                # Process each prediction in the batch
                 batch_probs = probabilities.cpu().numpy()
                 pred_classes = torch.argmax(probabilities, dim=1).cpu().numpy()
 
@@ -171,14 +159,12 @@ class ModelService:
                     )
                     responses.append(response)
 
-                    # Record metrics for each prediction
                     self.model_monitor.record_prediction(
                         prediction=sentiment,
                         confidence=confidence,
                         model_version=self.current_model_id
                     )
 
-            # Record batch processing time
             self.model_monitor.end_prediction(start_time, self.current_model_id)
             
             return responses

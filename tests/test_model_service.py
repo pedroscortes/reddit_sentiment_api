@@ -19,7 +19,6 @@ def cleanup():
 def model_service():
     service = ModelService()
     try:
-        # Get the latest model from your models directory
         models_dir = Path('models')
         model_dirs = [d for d in os.listdir(models_dir) 
                      if d.startswith('sentiment_model_20241207')]
@@ -32,7 +31,6 @@ def model_service():
         
         print(f"Loading model from: {model_path}")
         
-        # Register the model before loading
         service.model_registry.register_model(
             model_path=model_path,
             model_name="sentiment_analyzer",
@@ -41,10 +39,8 @@ def model_service():
             description="Sentiment analysis model"
         )
         
-        # Load the model
         service.load_model(model_path)
         
-        # Set current_model_id
         service.current_model_id = latest_model
         
         return service
@@ -66,8 +62,8 @@ def test_single_prediction(model_service):
     assert hasattr(result, 'confidence')
     assert hasattr(result, 'probabilities')
     assert result.confidence >= 0 and result.confidence <= 1
-    assert result.sentiment in ['positive', 'negative']  # Updated to match model output
-    assert len(result.probabilities) == 2  # Model only has positive/negative classes
+    assert result.sentiment in ['positive', 'negative']  
+    assert len(result.probabilities) == 2  
 
 def test_batch_prediction(model_service):
     """Test batch prediction"""
@@ -86,7 +82,6 @@ def test_batch_prediction(model_service):
 
 def test_model_performance_metrics(model_service):
     """Test performance monitoring"""
-    # Make some predictions to generate metrics
     texts = ["Great!", "Terrible!", "Okay."]
     for text in texts:
         model_service.predict(text)
@@ -94,7 +89,6 @@ def test_model_performance_metrics(model_service):
     metrics = model_service.get_model_performance()
     assert isinstance(metrics, dict)
     
-    # If predictions were made, we should have metrics
     if metrics:
         assert 'total_predictions' in metrics
         assert metrics['total_predictions'] >= len(texts)
@@ -118,7 +112,7 @@ def test_device_handling(model_service):
 @pytest.mark.parametrize("text,expected_sentiment", [
     ("This is absolutely amazing!", "positive"),
     ("This is terrible and horrible.", "negative"),
-    ("The weather is normal today.", "positive")  # Changed from neutral to positive
+    ("The weather is normal today.", "positive")  
 ])
 def test_sentiment_classification(model_service, text, expected_sentiment):
     result = model_service.predict(text)

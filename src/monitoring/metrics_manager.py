@@ -8,7 +8,6 @@ class MetricsManager:
     def __init__(self):
         self.registry = CollectorRegistry()
 
-        # Initialize request metrics
         self.request_counter = Counter(
             "api_requests_total", "Total API requests", ["endpoint", "method"], registry=self.registry
         )
@@ -17,12 +16,10 @@ class MetricsManager:
             "api_request_latency_seconds", "Request latency in seconds", ["endpoint"], registry=self.registry
         )
 
-        # Initialize prediction metrics
         self.prediction_counter = Counter(
             "sentiment_predictions_total", "Total predictions by sentiment", ["sentiment"], registry=self.registry
         )
 
-        # Initialize system metrics
         self.memory_gauge = Gauge("memory_usage_bytes", "Memory usage in bytes", registry=self.registry)
 
         self.cpu_gauge = Gauge("cpu_usage_percent", "CPU usage percentage", registry=self.registry)
@@ -65,5 +62,4 @@ class MetricsManager:
         }
 
 
-# Create a singleton instance
 metrics_manager = MetricsManager()

@@ -10,7 +10,6 @@ class ModelPerformanceMonitor:
     def __init__(self, registry=None):
         self.registry = registry or CollectorRegistry()
         
-        # Initialize prometheus metrics
         self.inference_time = Histogram(
             'model_inference_time_seconds',
             'Time spent on model inference',
@@ -33,7 +32,6 @@ class ModelPerformanceMonitor:
             registry=self.registry
         )
         
-        # Performance tracking
         self.performance_window = 1000
         self._predictions = []
         self._confidence_scores = []
@@ -60,12 +58,10 @@ class ModelPerformanceMonitor:
         })
         self._confidence_scores.append(confidence)
         
-        # Trim if exceeded window
         if len(self._predictions) > self.performance_window:
             self._predictions.pop(0)
             self._confidence_scores.pop(0)
         
-        # Update prometheus metrics
         self.prediction_confidence.labels(
             model_version=model_version,
             prediction=prediction
@@ -113,6 +109,6 @@ class ModelPerformanceMonitor:
                     prediction_counts[pred] = 0
                 prediction_counts[pred] += 1
             metrics['prediction_distribution'] = prediction_counts
-            metrics['prediction_history'] = self._predictions[-10:]  # Last 10 predictions
+            metrics['prediction_history'] = self._predictions[-10:]  
             
         return metrics

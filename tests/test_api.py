@@ -11,7 +11,6 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture
 def client():
     """Create test client with mocked dependencies."""
-    # Mock the dependencies before creating client
     app.state.model_service = Mock()
     app.state.model_service.model = Mock()
     app.state.model_service.predict.return_value = {
@@ -40,7 +39,6 @@ def mock_model_service():
     """Create a mock model service."""
     service = Mock()
     
-    # Mock batch prediction response
     service.predict_batch.return_value = [
         {
             "sentiment": "positive",
@@ -106,11 +104,9 @@ async def test_analyze_url_endpoint(client, monkeypatch):
         }
     }
 
-    # Create mock analyzer
     mock_analyzer = Mock()
     mock_analyzer.analyze_url = AsyncMock(return_value=mock_response)
     
-    # Replace the reddit_analyzer instance in the app
     app.state.reddit_analyzer = mock_analyzer
 
     test_input = {
@@ -121,7 +117,6 @@ async def test_analyze_url_endpoint(client, monkeypatch):
     assert response.status_code == 200
     result = response.json()
     
-    # Updated assertions to match actual response structure
     assert "comments" in result
     assert "comments_analyzed" in result
     assert "overall_sentiment" in result
@@ -158,7 +153,6 @@ def test_predict_endpoint(client):
 
 def test_predict_batch_endpoint(client, mock_model_service, monkeypatch):
     """Test the batch prediction endpoint."""
-    # Patch the service in the app
     monkeypatch.setattr("src.api.main.model_service", mock_model_service)
     
     test_input = {"texts": ["Message 1", "Message 2", "Message 3"]}
@@ -201,16 +195,15 @@ def test_analyze_trend_endpoint(client):
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
 
-# Error cases
 def test_predict_empty_text(client):
     """Test prediction with empty text."""
     test_input = {"text": ""}
     response = client.post("/predict", json=test_input)
-    assert response.status_code == 422  # Validation error
+    assert response.status_code == 422  
 
 def test_predict_long_text(client):
     """Test prediction with text exceeding length limit."""
-    test_input = {"text": "a" * 5001}  # Exceeds 5000 char limit
+    test_input = {"text": "a" * 5001}  
     response = client.post("/predict", json=test_input)
     assert response.status_code == 422
 
@@ -224,12 +217,10 @@ def test_invalid_subreddit_request(client):
     response = client.post("/analyze/subreddit", json=test_input)
     assert response.status_code == 422
 
-# tests/test_api.py (add these new test functions)
-
 def test_predict_long_batch(client):
     """Test batch prediction with too many texts."""
     test_input = {
-        "texts": ["Test message"] * 101  # Over the 100 limit
+        "texts": ["Test message"] * 101  
     }
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 422
@@ -255,7 +246,7 @@ def test_analyze_subreddit_invalid_limit(client):
     test_input = {
         "subreddit": "python",
         "time_filter": "week",
-        "post_limit": 501  # Over the 500 limit
+        "post_limit": 501  
     }
     response = client.post("/analyze/subreddit", json=test_input)
     assert response.status_code == 422
@@ -264,7 +255,7 @@ def test_analyze_user_invalid_limit(client):
     """Test user analysis with invalid limit."""
     test_input = {
         "username": "test_user",
-        "limit": 201  # Over the 200 limit
+        "limit": 201  
     }
     response = client.post("/analyze/user", json=test_input)
     assert response.status_code == 422
@@ -273,7 +264,7 @@ def test_analyze_trend_invalid_subreddits(client):
     """Test trend analysis with too many subreddits."""
     test_input = {
         "keyword": "python",
-        "subreddits": ["sub1", "sub2", "sub3", "sub4", "sub5", "sub6"],  # Over 5 limit
+        "subreddits": ["sub1", "sub2", "sub3", "sub4", "sub5", "sub6"],  
         "time_filter": "week",
         "limit": 100
     }
@@ -293,7 +284,6 @@ def test_analyze_trend_invalid_keyword(client):
 
 def test_health_check_no_model(client, monkeypatch):
     """Test health check when model is not loaded."""
-    # Mock model service without a model
     class MockModelService:
         model = None
         
@@ -304,7 +294,6 @@ def test_health_check_no_model(client, monkeypatch):
 
 def test_metrics_endpoint(client, monkeypatch):
     """Test metrics endpoint."""
-    # Mock metrics manager
     mock_metrics = {
         "predictions": {
             "positive": 10,
@@ -337,14 +326,11 @@ def test_metrics_endpoint(client, monkeypatch):
     assert data["system"]["memory_mb"] > 0
     assert isinstance(data["requests"]["total"], (int, float))
 
-# Add more complex scenario tests
 def test_batch_prediction_mixed_content(client, monkeypatch):
     """Test batch prediction with mixed content types."""
-    # Mock the model service
     def mock_predict_batch(texts):
         results = []
         for text in texts:
-            # Simulate different sentiments based on content
             if "great" in text.lower():
                 sentiment = "positive"
             elif "bad" in text.lower():
@@ -359,11 +345,9 @@ def test_batch_prediction_mixed_content(client, monkeypatch):
             })
         return results
     
-    # Create mock service
     mock_service = Mock()
     mock_service.predict_batch = mock_predict_batch
     
-    # Patch the service
     monkeypatch.setattr("src.api.main.model_service", mock_service)
     
     test_input = {

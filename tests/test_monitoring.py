@@ -60,11 +60,10 @@ def test_model_monitor_prediction_tracking(model_monitor):
 def test_model_monitor_timing(model_monitor):
     """Test inference timing tracking."""
     start_time = model_monitor.start_prediction()
-    time.sleep(0.1)  # Simulate processing
+    time.sleep(0.1)  
     duration = model_monitor.end_prediction(start_time, "test_v1")
     assert duration >= 0.1
     
-    # Verify metrics in registry
     metrics = model_monitor.get_performance_metrics("test_v1")
     assert metrics is not None
 
@@ -77,7 +76,6 @@ def test_model_monitor_error_tracking(model_monitor):
 
 def test_metrics_manager_prediction_distribution(metrics_manager):
     """Test sentiment prediction distribution tracking."""
-    # Record multiple predictions
     metrics_manager.track_prediction("positive")
     metrics_manager.track_prediction("negative")
     metrics_manager.track_prediction("neutral")
@@ -132,7 +130,6 @@ def test_system_resource_monitoring(metrics_manager):
 
 def test_metrics_aggregation(metrics_manager):
     """Test metrics aggregation over time."""
-    # Record some requests
     for _ in range(3):
         metrics_manager.track_request("/predict", "POST")
         time.sleep(0.1)

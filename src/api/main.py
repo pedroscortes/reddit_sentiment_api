@@ -20,7 +20,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -28,19 +27,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan events manager for FastAPI."""
     try:
-        # Get latest model
         model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
         latest_model = max(model_dirs)
         model_path = os.path.join('models', latest_model, 'final_model')
         
-        # Load model
         model_service.load_model(model_path)
         
-        # Initialize Reddit analyzer
         global reddit_analyzer
         reddit_analyzer = RedditAnalyzer(model_service)
         
-        # Load environment variables
         load_dotenv()
         
         yield
@@ -48,7 +43,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error during startup: {str(e)}")
         raise RuntimeError(f"Failed to start application: {str(e)}")
     finally:
-        # Cleanup code (if any) goes here
         pass
 
 class TextInput(BaseModel):
@@ -58,8 +52,8 @@ class TextInput(BaseModel):
 class BatchInput(BaseModel):
     texts: List[str] = Field(
         ..., 
-        min_length=1,  # Instead of min_items
-        max_length=100  # Instead of max_items
+        min_length=1,  
+        max_length=100  
     )
 
 
@@ -95,8 +89,8 @@ class TrendRequest(BaseModel):
     keyword: str = Field(..., min_length=1, max_length=100)
     subreddits: List[str] = Field(
         ..., 
-        min_length=1,  # Instead of min_items
-        max_length=5   # Instead of max_items
+        min_length=1,  
+        max_length=5   
     )
     time_filter: str = Field(
         default="week", 
@@ -105,13 +99,11 @@ class TrendRequest(BaseModel):
     limit: int = Field(default=100, ge=1, le=500)
 
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Reddit Sentiment Analysis API",
     lifespan=lifespan
 )
 
-# Initialize services
 model_service = ModelService()
 reddit_analyzer = None
 metrics = MetricsTracker()
@@ -132,19 +124,15 @@ async def monitoring_metrics():
 async def lifespan(app: FastAPI):
     """Lifespan events manager for FastAPI."""
     try:
-        # Get latest model
         model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
         latest_model = max(model_dirs)
         model_path = os.path.join('models', latest_model, 'final_model')
         
-        # Load model
         model_service.load_model(model_path)
         
-        # Initialize Reddit analyzer
         global reddit_analyzer
         reddit_analyzer = RedditAnalyzer(model_service)
         
-        # Load environment variables
         load_dotenv()
         
         yield
@@ -152,7 +140,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error during startup: {str(e)}")
         raise RuntimeError(f"Failed to start application: {str(e)}")
     finally:
-        # Cleanup code (if any) goes here
         pass
 
 @app.get("/")
@@ -235,7 +222,6 @@ async def analyze_trend(request: TrendRequest):
         return result
     except Exception as e:
         logger.error(f"Error in analyze_trend endpoint: {str(e)}", exc_info=True)
-        # Return a more detailed error response
         return JSONResponse(
             status_code=500, content={"error": "Internal Server Error", "detail": str(e), "path": "/analyze/trend"}
         )

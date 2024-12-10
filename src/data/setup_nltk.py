@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 def download_nltk_resources():
     """Download all required NLTK resources"""
     try:
-        # Create an SSL context to handle download issues
         try:
             _create_unverified_https_context = ssl._create_unverified_context
         except AttributeError:
@@ -19,8 +18,7 @@ def download_nltk_resources():
         else:
             ssl._create_default_https_context = _create_unverified_https_context
 
-        # Resources we need
-        resources = ["punkt", "stopwords", "wordnet", "averaged_perceptron_tagger", "omw-1.4"]  # Open Multilingual Wordnet
+        resources = ["punkt", "stopwords", "wordnet", "averaged_perceptron_tagger", "omw-1.4"]  
 
         for resource in resources:
             logger.info(f"Downloading {resource}...")

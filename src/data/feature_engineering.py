@@ -25,16 +25,16 @@ class FeatureEngineer:
 
         df = df.copy()
 
-        # Punctuation features
         df["exclamation_count"] = df["text"].str.count("!")
         df["question_count"] = df["text"].str.count(r"\?")
         df["punctuation_count"] = df["text"].str.count("[.,!?;:]")
 
-        # Capitalization features
         df["caps_count"] = df["text"].apply(lambda x: sum(1 for c in str(x) if c.isupper()))
-        df["caps_ratio"] = df["caps_count"] / df["text_length"]
+        if "text_length" in df.columns:
+            df["caps_ratio"] = df["caps_count"] / df["text_length"]
+        else:
+            df["caps_ratio"] = 0
 
-        # Word-based features
         df["avg_word_length"] = df["processed_text"].apply(lambda x: np.mean([len(w) for w in str(x).split()]))
 
         return df
@@ -45,14 +45,21 @@ class FeatureEngineer:
 
         df = df.copy()
 
-        # Score-based features
         df["score_log"] = np.log1p(df["score"].abs()) * np.sign(df["score"])
 
-        # Temporal features
-        df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
-        df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
-        df["weekday_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
-        df["weekday_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
+        if "hour" in df.columns:
+            df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
+            df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+        else:
+            df["hour_sin"] = 0
+            df["hour_cos"] = 0
+
+        if "day_of_week" in df.columns:
+            df["weekday_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
+            df["weekday_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
+        else:
+            df["weekday_sin"] = 0
+            df["weekday_cos"] = 0
 
         return df
 
@@ -61,23 +68,25 @@ class FeatureEngineer:
         logger.info("Creating sentiment features...")
 
         df = df.copy()
-
-        # Normalize sentiment strength
+        
+        if df.empty:
+            df["sentiment_strength_normalized"] = pd.Series(dtype='float')
+            return df
+            
         df["sentiment_strength_normalized"] = self.scaler.fit_transform(df[["sentiment_strength"]])
-
-        # Create sentiment confidence
         df["sentiment_confidence"] = abs(df["sentiment_score"])
-
+        
         return df
 
     def create_tfidf_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create TF-IDF features from processed text."""
         logger.info("Creating TF-IDF features...")
 
-        # Generate TF-IDF features
+        if df.empty:
+            return df
+
         tfidf_matrix = self.tfidf.fit_transform(df["processed_text"])
 
-        # Convert to DataFrame
         tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=[f"tfidf_{i}" for i in range(tfidf_matrix.shape[1])])
 
         return pd.concat([df, tfidf_df], axis=1)
@@ -87,26 +96,25 @@ class FeatureEngineer:
         logger.info(f"Balancing classes using {strategy} strategy...")
 
         if strategy == "hybrid":
-            # Undersample majority class and oversample minority class
-            neutral_count = len(df[df["sentiment"] == "neutral"])
-            positive_count = len(df[df["sentiment"] == "positive"])
-            negative_count = len(df[df["sentiment"] == "negative"])
+            if "sentiment" in df.columns:
+                neutral_count = len(df[df["sentiment"] == "neutral"])
+                positive_count = len(df[df["sentiment"] == "positive"])
+                negative_count = len(df[df["sentiment"] == "negative"])
 
-            # Target count: average of current counts
-            target_count = int(np.mean([neutral_count, positive_count, negative_count]))
+                target_count = int(np.mean([neutral_count, positive_count, negative_count]))
 
-            balanced_dfs = []
-            for sentiment in ["negative", "neutral", "positive"]:
-                sentiment_df = df[df["sentiment"] == sentiment]
-                if len(sentiment_df) > target_count:
-                    # Undersample
-                    balanced_df = sentiment_df.sample(n=target_count, random_state=42)
-                else:
-                    # Oversample
-                    balanced_df = sentiment_df.sample(n=target_count, replace=True, random_state=42)
-                balanced_dfs.append(balanced_df)
+                balanced_dfs = []
+                for sentiment in ["negative", "neutral", "positive"]:
+                    sentiment_df = df[df["sentiment"] == sentiment]
+                    if len(sentiment_df) > target_count:
+                        balanced_df = sentiment_df.sample(n=target_count, random_state=42)
+                    else:
+                        balanced_df = sentiment_df.sample(n=target_count, replace=True, random_state=42)
+                    balanced_dfs.append(balanced_df)
 
-            return pd.concat(balanced_dfs, axis=0).reset_index(drop=True)
+                return pd.concat(balanced_dfs, axis=0).reset_index(drop=True)
+            else:
+                return df
 
         return df
 
@@ -115,38 +123,35 @@ class FeatureEngineer:
         logger.info(f"Loading data from {input_path}")
         df = pd.read_csv(input_path)
 
-        # Create all features
         df = self.create_text_features(df)
         df = self.create_engagement_features(df)
         df = self.create_sentiment_features(df)
         df = self.create_tfidf_features(df)
 
-        # Balance classes
         df = self.balance_classes(df, strategy=balance_strategy)
 
-        # Log feature statistics
         logger.info("\nFeature Engineering Results:")
         logger.info(f"Total features created: {len(df.columns)}")
-        logger.info("\nClass distribution after balancing:")
-        logger.info(df["sentiment"].value_counts())
+
+        if "sentiment" in df.columns:
+            logger.info("\nClass distribution after balancing:")
+            logger.info(df["sentiment"].value_counts())
+        else:
+            logger.info("No 'sentiment' column found in the data.")
 
         return df
 
 
 def main():
     try:
-        # Get latest processed data file
         processed_dir = "data/processed"
         latest_file = max([f for f in os.listdir(processed_dir) if f.startswith("processed_reddit_comments_")])
         input_path = os.path.join(processed_dir, latest_file)
 
-        # Initialize feature engineer
         engineer = FeatureEngineer()
 
-        # Engineer features
         df_engineered = engineer.engineer_features(input_path)
 
-        # Save engineered features
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = f"data/processed/engineered_features_{timestamp}.csv"
         df_engineered.to_csv(output_path, index=False)

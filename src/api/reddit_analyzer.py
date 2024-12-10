@@ -14,21 +14,17 @@ import os
 from dotenv import load_dotenv
 from .model_service import ModelService
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 
 class RedditAnalyzer:
     def __init__(self, model_service: ModelService):
-        # Ensure environment variables are loaded
         load_dotenv()
 
-        # Get credentials from environment
         client_id = os.getenv("REDDIT_CLIENT_ID")
         client_secret = os.getenv("REDDIT_CLIENT_SECRET")
         user_agent = os.getenv("REDDIT_USER_AGENT")
 
-        # Validate credentials
         if not all([client_id, client_secret, user_agent]):
             raise ValueError(
                 "Missing Reddit API credentials. Please ensure REDDIT_CLIENT_ID, "
@@ -45,13 +41,11 @@ class RedditAnalyzer:
             logger.info(f"Analyzing subreddit: r/{subreddit_name}")
             subreddit = self.reddit.subreddit(subreddit_name)
 
-            # Verify subreddit exists
             try:
                 _ = subreddit.id
             except:
                 raise ValueError(f"Subreddit r/{subreddit_name} not found")
 
-            # Get posts based on time filter
             posts = subreddit.top(time_filter=time_filter, limit=post_limit)
 
             comments = []
@@ -80,17 +74,13 @@ class RedditAnalyzer:
             if total_comments == 0:
                 return {"subreddit": subreddit_name, "message": "No comments found for analysis", "total_comments_analyzed": 0}
 
-            # Calculate sentiment distribution
             sentiment_distribution = {k: round(v / total_comments * 100, 2) for k, v in sentiment_stats.items()}
 
-            # Time series analysis
             df = pd.DataFrame(comments)
             df.set_index("created_utc", inplace=True)
 
-            # Daily sentiment trends
             daily_sentiment = df.resample("D")["sentiment"].value_counts().unstack().fillna(0)
 
-            # Top posts analysis
             post_sentiment = df.groupby("post_title")["sentiment"].value_counts().unstack().fillna(0)
 
             return {
@@ -124,7 +114,6 @@ class RedditAnalyzer:
             if "reddit.com" not in parsed_url.netloc:
                 raise ValueError("Not a valid Reddit URL")
 
-            # Extract post ID and optional comment ID
             path_parts = parsed_url.path.strip("/").split("/")
 
             if "comments" in path_parts:
@@ -136,14 +125,12 @@ class RedditAnalyzer:
 
             submission = self.reddit.submission(id=submission_id)
 
-            # Analyze post content
             post_text = submission.selftext if submission.selftext else submission.title
             post_analysis = self.model_service.predict(post_text)
 
             comments_data = []
 
             if comment_id:
-                # Analyze specific comment
                 comment = self.reddit.comment(comment_id)
                 comment_analysis = self.model_service.predict(comment.body)
                 comments_data = [
@@ -156,7 +143,6 @@ class RedditAnalyzer:
                     }
                 ]
             else:
-                # Analyze top comments
                 submission.comments.replace_more(limit=0)
                 for comment in submission.comments.list()[:20]:
                     if hasattr(comment, "body") and len(comment.body) > 20:
@@ -171,7 +157,6 @@ class RedditAnalyzer:
                             }
                         )
 
-            # Calculate overall sentiment
             sentiment_counts = Counter(c["sentiment"] for c in comments_data)
             total_comments = len(comments_data)
 
@@ -204,7 +189,6 @@ class RedditAnalyzer:
             logger.info(f"Analyzing user: u/{username}")
             user = self.reddit.redditor(username)
 
-            # Verify user exists
             try:
                 _ = user.id
             except:
@@ -233,14 +217,11 @@ class RedditAnalyzer:
             if not comments_data:
                 return {"username": username, "message": "No comments found for analysis", "total_comments_analyzed": 0}
 
-            # Create DataFrame for analysis
             df = pd.DataFrame(comments_data)
             df["created_utc"] = pd.to_datetime(df["created_utc"])
 
-            # Time series analysis
             sentiment_over_time = df.set_index("created_utc").resample("D")["sentiment"].value_counts().unstack().fillna(0)
 
-            # Calculate sentiment distribution
             sentiment_counts = Counter(c["sentiment"] for c in comments_data)
             total_comments = len(comments_data)
 
@@ -309,10 +290,8 @@ class RedditAnalyzer:
                     "total_mentions": 0,
                 }
 
-            # Convert to DataFrame for analysis
             df = pd.DataFrame(trend_data)
 
-            # Calculate sentiment counts per subreddit
             sentiment_counts = {}
             for subreddit in df["subreddit"].unique():
                 subreddit_data = df[df["subreddit"] == subreddit]
@@ -322,7 +301,6 @@ class RedditAnalyzer:
                     "negative": int(sum(subreddit_data["sentiment"] == "negative")),
                 }
 
-            # Calculate engagement metrics
             engagement_metrics = {}
             for subreddit in df["subreddit"].unique():
                 subreddit_data = df[df["subreddit"] == subreddit]
@@ -332,7 +310,6 @@ class RedditAnalyzer:
                     "comment_count": int(len(subreddit_data)),
                 }
 
-            # Prepare sample mentions
             sample_mentions = [
                 {
                     "text": item["text"][:200] + "..." if len(item["text"]) > 200 else item["text"],

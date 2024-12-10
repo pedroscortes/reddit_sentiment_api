@@ -8,7 +8,6 @@ import logging
 from typing import List, Dict
 import time
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,6 @@ class LargeRedditCollector:
             subreddit = self.reddit.subreddit(subreddit_name)
             posts_processed = 0
 
-            # Collect from different post categories for diversity
             for category in ["hot", "top", "new", "controversial"]:
                 if len(comments) >= comment_limit:
                     break
@@ -48,7 +46,7 @@ class LargeRedditCollector:
                         if len(comments) >= comment_limit:
                             break
 
-                        if post.over_18:  # Skip NSFW content
+                        if post.over_18: 
                             continue
 
                         try:
@@ -80,7 +78,7 @@ class LargeRedditCollector:
                             posts_processed += 1
                             if posts_processed % 5 == 0:
                                 logger.info(f"Processed {posts_processed} posts from r/{subreddit_name} ({category})")
-                                time.sleep(1)  # Rate limiting
+                                time.sleep(1)  
 
                         except Exception as e:
                             logger.warning(f"Error processing post in r/{subreddit_name}: {str(e)}")
@@ -97,25 +95,19 @@ class LargeRedditCollector:
 
 
 def main():
-    # Subreddits chosen for sentiment diversity
     subreddits_config = {
-        # Technology and Science
         "technology": {"limit": 500},
         "science": {"limit": 500},
         "programming": {"limit": 500},
-        # Entertainment
         "movies": {"limit": 500},
         "gaming": {"limit": 500},
         "music": {"limit": 500},
-        # Discussion and Opinion
         "politics": {"limit": 500},
         "worldnews": {"limit": 500},
         "AskReddit": {"limit": 500},
-        # Positive-leaning
         "UpliftingNews": {"limit": 500},
         "MadeMeSmile": {"limit": 500},
         "wholesome": {"limit": 500},
-        # Critical Discussion
         "unpopularopinion": {"limit": 500},
         "changemyview": {"limit": 500},
         "TrueOffMyChest": {"limit": 500},
@@ -128,22 +120,20 @@ def main():
         logger.info(f"Collecting from r/{subreddit}")
         comments = collector.collect_from_subreddit(
             subreddit_name=subreddit,
-            post_limit=50,  # Posts per category (hot, top, new, controversial)
+            post_limit=50,  
             comment_limit=config["limit"],
         )
         all_comments.extend(comments)
         logger.info(f"Collected {len(comments)} comments from r/{subreddit}")
 
-        # Save intermediate results
         df = pd.DataFrame(all_comments)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         intermediate_file = f"data/raw/large_reddit_dataset_intermediate_{timestamp}.csv"
         df.to_csv(intermediate_file, index=False)
         logger.info(f"Saved intermediate dataset with {len(df)} comments")
 
-        time.sleep(2)  # Rate limiting between subreddits
+        time.sleep(2)  
 
-    # Save final dataset
     final_df = pd.DataFrame(all_comments)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     final_file = f"data/raw/large_reddit_dataset_final_{timestamp}.csv"

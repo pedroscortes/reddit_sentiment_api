@@ -9,25 +9,19 @@ from logging.handlers import RotatingFileHandler
 import time
 
 
-# Enhanced logging setup
 def setup_logging():
-    # Create logs directory if it doesn't exist
     os.makedirs("logs", exist_ok=True)
 
-    # Setup file handler
     file_handler = RotatingFileHandler(
         f'logs/collection_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log', maxBytes=10000000, backupCount=5
     )
 
-    # Setup console handler
     console_handler = logging.StreamHandler()
 
-    # Setup formatters
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
 
-    # Setup logger
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     logger.addHandler(file_handler)
@@ -48,7 +42,6 @@ class RedditDataCollector:
             user_agent=os.getenv("REDDIT_USER_AGENT"),
         )
 
-        # Enhanced negative-focused subreddits
         self.subreddit_categories = {
             "positive": [
                 "UpliftingNews",
@@ -89,9 +82,7 @@ class RedditDataCollector:
             ],
         }
 
-        # Adjusted sentiment word lists
         self.negative_indicators = {
-            # Strong negative indicators (weight: 2.0)
             "strong": {
                 "hate",
                 "terrible",
@@ -105,7 +96,6 @@ class RedditDataCollector:
                 "worst",
                 "pathetic",
             },
-            # Moderate negative indicators (weight: 1.0)
             "moderate": {
                 "bad",
                 "poor",
@@ -122,7 +112,6 @@ class RedditDataCollector:
         }
 
         self.positive_indicators = {
-            # Strong positive indicators (weight: 2.0)
             "strong": {
                 "amazing",
                 "excellent",
@@ -135,7 +124,6 @@ class RedditDataCollector:
                 "delighted",
                 "blessed",
             },
-            # Moderate positive indicators (weight: 1.0)
             "moderate": {
                 "good",
                 "nice",
@@ -156,29 +144,23 @@ class RedditDataCollector:
         text = comment.body.lower()
         words = set(text.split())
 
-        # Calculate sentiment score with weights
         sentiment_score = 0
 
-        # Add negative scores
         sentiment_score -= sum(2.0 for word in self.negative_indicators["strong"] if word in words)
         sentiment_score -= sum(1.0 for word in self.negative_indicators["moderate"] if word in words)
 
-        # Add positive scores
         sentiment_score += sum(2.0 for word in self.positive_indicators["strong"] if word in words)
         sentiment_score += sum(1.0 for word in self.positive_indicators["moderate"] if word in words)
 
-        # Factor in comment score
         score_factor = min(max(comment.score, -10), 10) / 10
         sentiment_score += score_factor
 
-        # Controversiality adjustment
         if hasattr(comment, "controversiality") and comment.controversiality > 0:
             sentiment_score -= 1.5
 
-        # Adjusted thresholds for better balance
         if sentiment_score > 2:
             return "positive"
-        elif sentiment_score < -1:  # Lower threshold for negative
+        elif sentiment_score < -1:  
             return "negative"
         return "neutral"
 
@@ -191,12 +173,10 @@ class RedditDataCollector:
         subreddit_counts = {}
         start_time = time.time()
 
-        # Initialize subreddit counts
         for category in self.subreddit_categories.values():
             for subreddit in category:
                 subreddit_counts[subreddit] = 0
 
-        # Process categories in order of difficulty (negative first)
         category_order = ["negative", "neutral", "positive"]
 
         for category in category_order:
@@ -211,7 +191,6 @@ class RedditDataCollector:
                     try:
                         subreddit = self.reddit.subreddit(subreddit_name)
 
-                        # Adjusted sort methods for category
                         if category == "negative":
                             sort_methods = ["controversial", "new", "hot"]
                         else:
@@ -285,7 +264,7 @@ class RedditDataCollector:
                                 logger.error(f"Error in {sort_method} posts for {subreddit_name}: {str(e)}")
                                 continue
 
-                            time.sleep(2)  # Rate limiting
+                            time.sleep(2)  
 
                     except Exception as e:
                         logger.error(f"Error accessing subreddit {subreddit_name}: {str(e)}")
