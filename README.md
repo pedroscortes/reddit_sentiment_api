@@ -39,7 +39,7 @@ A production-ready API service that analyzes sentiment in Reddit content using s
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/sentiment-analysis-api.git
+git clone https://github.com/pedroscortes/sentiment-analysis-api.git
 cd sentiment-analysis-api
 ```
 
@@ -145,11 +145,3 @@ sentiment-analysis-api/
 - **Testing**: pytest
 - **Container**: Docker
 - **Documentation**: FastAPI Swagger UI
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
