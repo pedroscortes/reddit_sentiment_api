@@ -66,29 +66,32 @@ def mock_model_service():
     mock = Mock()
     mock.predict.return_value = {"sentiment": "positive", "confidence": 0.95}
     mock.predict_batch.return_value = [
-        {"sentiment": "positive", "confidence": 0.95},
-        {"sentiment": "negative", "confidence": 0.85}
+        {"sentiment": "positive", "confidence": 0.95}
     ]
+    mock.model = Mock()
     return mock
 
 @pytest.fixture
 def mock_reddit_analyzer():
     mock = Mock()
+    mock.analyze_url = AsyncMock(return_value={
+        "comments": [{"sentiment": "positive", "confidence": 0.95}],
+        "overall_sentiment": {"positive": 75, "negative": 25},
+        "comments_analyzed": 1
+    })
+    mock.analyze_subreddit = AsyncMock(return_value={
+        "posts": [{"title": "Test", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 75, "negative": 25},
+        "average_confidence": 0.9
+    })
+    mock.analyze_user = AsyncMock(return_value={
+        "comments": [{"text": "Test", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 75, "negative": 25},
+        "average_confidence": 0.9
+    })
     mock.analyze_trend = AsyncMock(return_value={
         "trend_data": [],
         "overall_sentiment": {"positive": 60, "negative": 40}
-    })
-    mock.analyze_url = AsyncMock(return_value={
-        "comments": [{"confidence": 0.98, "sentiment": "negative"}],
-        "overall_sentiment": {"negative": 81.25, "positive": 18.75}
-    })
-    mock.analyze_subreddit = AsyncMock(return_value={
-        "posts": [],
-        "sentiment_distribution": {"positive": 60, "negative": 40}
-    })
-    mock.analyze_user = AsyncMock(return_value={
-        "comments": [],
-        "sentiment_distribution": {"positive": 60, "negative": 40}
     })
     return mock
 
@@ -96,15 +99,21 @@ def mock_reddit_analyzer():
 def client(mock_model_service, mock_reddit_analyzer):
     """Test client with mocked dependencies"""
     from src.api.main import app
-    
-    async def startup():
-        app.state.model_service = mock_model_service
-        app.state.reddit_analyzer = mock_reddit_analyzer
-
     from fastapi.testclient import TestClient
-    with TestClient(app) as client:
-        app.router.on_startup = [startup]
-        return client
+    
+    original_model_service = getattr(app.state, 'model_service', None)
+    original_reddit_analyzer = getattr(app.state, 'reddit_analyzer', None)
+    
+    app.state.model_service = mock_model_service
+    app.state.reddit_analyzer = mock_reddit_analyzer
+    
+    with TestClient(app) as test_client:
+        yield test_client
+    
+    if original_model_service:
+        app.state.model_service = original_model_service
+    if original_reddit_analyzer:
+        app.state.reddit_analyzer = original_reddit_analyzer
 
 @pytest.fixture(autouse=True)
 def mock_torch_device():

@@ -27,14 +27,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan events manager for FastAPI."""
     try:
-        model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
-        latest_model = max(model_dirs)
-        model_path = os.path.join('models', latest_model, 'final_model')
+        if not hasattr(app.state, "model_service"):
+            app.state.model_service = ModelService()
+            
+            if os.path.exists('models'):
+                model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
+                if model_dirs:
+                    latest_model = max(model_dirs)
+                    model_path = os.path.join('models', latest_model, 'final_model')
+                    app.state.model_service.load_model(model_path)
         
-        model_service.load_model(model_path)
-        
-        global reddit_analyzer
-        reddit_analyzer = RedditAnalyzer(model_service)
+        if not hasattr(app.state, "reddit_analyzer"):
+            app.state.reddit_analyzer = RedditAnalyzer(app.state.model_service)
         
         load_dotenv()
         
@@ -104,11 +108,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-model_service = ModelService()
-reddit_analyzer = None
-metrics = MetricsTracker()
-
-
 @app.get("/metrics")
 async def metrics():
     return Response(generate_latest(metrics_manager.registry), media_type=CONTENT_TYPE_LATEST)
@@ -119,29 +118,6 @@ async def monitoring_metrics():
     """Get current monitoring metrics."""
     return metrics_manager.get_metrics()
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan events manager for FastAPI."""
-    try:
-        model_dirs = [d for d in os.listdir('models') if d.startswith('sentiment_model_')]
-        latest_model = max(model_dirs)
-        model_path = os.path.join('models', latest_model, 'final_model')
-        
-        model_service.load_model(model_path)
-        
-        global reddit_analyzer
-        reddit_analyzer = RedditAnalyzer(model_service)
-        
-        load_dotenv()
-        
-        yield
-    except Exception as e:
-        logger.error(f"Error during startup: {str(e)}")
-        raise RuntimeError(f"Failed to start application: {str(e)}")
-    finally:
-        pass
-
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
@@ -151,7 +127,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    if model_service.model is None:
+    if app.state.model_service.model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {"status": "healthy"}
 
@@ -163,7 +139,7 @@ async def predict(input_data: TextInput):
 
     try:
         metrics_manager.track_request("/predict", "POST")
-        result = model_service.predict(input_data.text)
+        result = app.state.model_service.predict(input_data.text)
         metrics_manager.track_prediction(result.sentiment)
 
         duration = time.time() - start_time
@@ -179,7 +155,7 @@ async def predict(input_data: TextInput):
 async def predict_batch(input_data: BatchInput):
     """Predict sentiment for multiple texts."""
     try:
-        predictions = model_service.predict_batch(input_data.texts)
+        predictions = app.state.model_service.predict_batch(input_data.texts)
         return BatchPredictionResponse(predictions=predictions)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -189,7 +165,7 @@ async def predict_batch(input_data: BatchInput):
 async def analyze_subreddit(request: SubredditRequest):
     """Analyze sentiment patterns in a subreddit."""
     try:
-        return await reddit_analyzer.analyze_subreddit(request.subreddit, request.time_filter, request.post_limit)
+        return await app.state.reddit_analyzer.analyze_subreddit(request.subreddit, request.time_filter, request.post_limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -198,7 +174,7 @@ async def analyze_subreddit(request: SubredditRequest):
 async def analyze_url(request: RedditURLRequest):
     """Analyze sentiment from a Reddit URL."""
     try:
-        return await reddit_analyzer.analyze_url(request.url)
+        return await app.state.reddit_analyzer.analyze_url(request.url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -207,7 +183,7 @@ async def analyze_url(request: RedditURLRequest):
 async def analyze_user(request: UserRequest):
     """Analyze sentiment patterns of a user's comments."""
     try:
-        return await reddit_analyzer.analyze_user(request.username, request.limit)
+        return await app.state.reddit_analyzer.analyze_user(request.username, request.limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -218,14 +194,14 @@ async def analyze_trend(request: TrendRequest):
     try:
         logger.info(f"Received trend analysis request for keyword: {request.keyword} " f"in subreddits: {request.subreddits}")
 
-        result = await reddit_analyzer.analyze_trend(request.keyword, request.subreddits, request.time_filter, request.limit)
+        result = await app.state.reddit_analyzer.analyze_trend(request.keyword, request.subreddits, request.time_filter, request.limit)
         return result
     except Exception as e:
         logger.error(f"Error in analyze_trend endpoint: {str(e)}", exc_info=True)
         return JSONResponse(
-            status_code=500, content={"error": "Internal Server Error", "detail": str(e), "path": "/analyze/trend"}
+            status_code=500, 
+            content={"error": "Internal Server Error", "detail": str(e), "path": "/analyze/trend"}
         )
-
 
 if __name__ == "__main__":
     import uvicorn
