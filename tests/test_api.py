@@ -6,8 +6,6 @@ from src.api.main import app
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 
-pytestmark = pytest.mark.asyncio
-
 @pytest.fixture
 def client(mock_reddit_analyzer):
     from src.api.main import app
@@ -177,10 +175,11 @@ def test_analyze_trend_invalid_keyword(client):
 
 def test_health_check_no_model(client, monkeypatch):
     """Test health check when model is not loaded."""
-    class MockModelService:
-        model = None
-        
-    monkeypatch.setattr("src.api.main.model_service", MockModelService())
+    mock_service = Mock()
+    mock_service.model = None
+    
+    client.app.state.model_service = mock_service
+    
     response = client.get("/health")
     assert response.status_code == 503
     assert response.json()["detail"] == "Model not loaded"
@@ -226,17 +225,18 @@ def test_batch_prediction_mixed_content(client, monkeypatch):
         for text in texts:
             if "great" in text.lower():
                 sentiment = "positive"
-            elif "bad" in text.lower():
-                sentiment = "negative"
             else:
                 sentiment = "neutral"
-            
-            results.append({
-                "sentiment": sentiment,
-                "confidence": 0.9,
-                "probabilities": {"positive": 0.9, "negative": 0.1}
-            })
+            results.append({"sentiment": sentiment, "confidence": 0.9})
         return results
+
+    mock_service = Mock()
+    mock_service.predict_batch = mock_predict_batch
+    client.app.state.model_service = mock_service
+
+    test_texts = ["This is great!", "This is normal"]
+    response = client.post("/predict/batch", json={"texts": test_texts})
+    assert response.status_code == 200
     
     mock_service = Mock()
     mock_service.predict_batch = mock_predict_batch
