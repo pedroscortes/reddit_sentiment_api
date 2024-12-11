@@ -151,8 +151,12 @@ async def predict(input_data: TextInput, model_service: ModelService = Depends(g
     try:
         result = model_service.predict(input_data.text)
         if isinstance(result, dict):
-            return result
-        return result.model_dump() if hasattr(result, 'model_dump') else result
+            return PredictionResponse(**result)
+        return PredictionResponse(
+            sentiment=result.sentiment,
+            confidence=result.confidence,
+            probabilities=result.probabilities
+        )
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -166,14 +170,17 @@ async def predict_batch(input_data: BatchInput, model_service: ModelService = De
         for text in input_data.texts:
             result = model_service.predict(text)
             if isinstance(result, dict):
-                predictions.append(result)
+                predictions.append(PredictionResponse(**result))
             else:
-                predictions.append(result.model_dump() if hasattr(result, 'model_dump') else result)
+                predictions.append(PredictionResponse(
+                    sentiment=result.sentiment,
+                    confidence=result.confidence,
+                    probabilities=result.probabilities
+                ))
         return BatchPredictionResponse(predictions=predictions)
     except Exception as e:
         logger.error(f"Error in batch prediction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/analyze/subreddit")
 async def analyze_subreddit(
