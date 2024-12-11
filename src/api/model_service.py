@@ -4,7 +4,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 from typing import List, Dict
 import logging
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import os
 from src.models.model_registry import ModelRegistry
 from src.monitoring.model_monitor import ModelPerformanceMonitor
@@ -14,6 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PredictionResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)  
     sentiment: str
     confidence: float
     probabilities: Dict[str, float]

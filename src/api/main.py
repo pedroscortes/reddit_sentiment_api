@@ -169,7 +169,7 @@ async def predict_batch(
     """Predict sentiment for multiple texts."""
     try:
         predictions = model_service.predict_batch(input_data.texts)
-        return BatchPredictionResponse(predictions=predictions)
+        return {"predictions": predictions}  
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
