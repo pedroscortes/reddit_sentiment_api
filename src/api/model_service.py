@@ -107,11 +107,14 @@ class ModelService:
 
     def predict_batch(self, texts: List[str]) -> List[Dict]:
         """Predict sentiment for multiple texts."""
-        return [
-            self.predict(text).model_dump() if hasattr(self.predict(text), 'model_dump') 
-            else self.predict(text) 
-            for text in texts
-        ]
+        predictions = []
+        for text in texts:
+            result = self.predict(text)
+            # If the result is a PredictionResponse, convert it to dict
+            if isinstance(result, PredictionResponse):
+                result = result.model_dump()
+            predictions.append(result)
+        return predictions
 
     def get_model_performance(self) -> Dict:
         """Get model performance metrics."""

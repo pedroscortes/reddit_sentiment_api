@@ -78,24 +78,26 @@ def mock_model_service():
     mock.predict_batch = mock_predict_batch
     return mock
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_reddit_analyzer(monkeypatch):
     """Mock RedditAnalyzer for all tests"""
-    mock = Mock()
-    
     async def mock_analyze_trend(*args, **kwargs):
         return {
             "trend_data": [],
             "overall_sentiment": {"positive": 60, "negative": 40},
             "subreddits_analyzed": 2
         }
-    
+
+    mock = AsyncMock()
     mock.analyze_trend = AsyncMock(side_effect=mock_analyze_trend)
-    
+
     class MockRedditAnalyzer:
         def __init__(self, *args, **kwargs):
-            self.analyzer = mock
-            
+            pass
+
+        async def analyze_trend(self, *args, **kwargs):
+            return await mock.analyze_trend(*args, **kwargs)
+
     monkeypatch.setattr("src.api.main.RedditAnalyzer", MockRedditAnalyzer)
     return mock
 
