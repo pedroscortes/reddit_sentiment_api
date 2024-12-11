@@ -226,7 +226,7 @@ def test_batch_prediction_mixed_content(client, mock_model_service):
     """Test batch prediction with mixed content types."""
     test_texts = ["This is great!", "This is normal"]
     
-    mock_model_service.predict_batch.return_value = [
+    mock_responses = [
         {
             "sentiment": "positive",
             "confidence": 0.9,
@@ -239,8 +239,9 @@ def test_batch_prediction_mixed_content(client, mock_model_service):
         }
     ]
     
+    mock_model_service.predict_batch.return_value = mock_responses
     app.state.model_service = mock_model_service
-    
+
     response = client.post("/predict/batch", json={"texts": test_texts})
     assert response.status_code == 200
     

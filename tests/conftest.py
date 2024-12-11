@@ -82,27 +82,14 @@ def mock_model_service():
 def mock_reddit_analyzer(monkeypatch):
     """Mock RedditAnalyzer for all tests"""
     mock_analyzer = AsyncMock()
+    
     mock_analyzer.analyze_trend.return_value = {
         "trend_data": [],
         "overall_sentiment": {"positive": 60, "negative": 40},
         "subreddits_analyzed": 2
     }
-    mock_analyzer.analyze_url.return_value = {
-        "comments": [{"sentiment": "positive", "confidence": 0.95}],
-        "overall_sentiment": {"positive": 75, "negative": 25},
-        "comments_analyzed": 1
-    }
-    mock_analyzer.analyze_subreddit.return_value = {
-        "posts": [{"title": "Test Post", "sentiment": "positive"}],
-        "sentiment_distribution": {"positive": 60, "negative": 40},
-        "average_confidence": 0.9
-    }
-    mock_analyzer.analyze_user.return_value = {
-        "comments": [{"text": "Test", "sentiment": "positive"}],
-        "sentiment_distribution": {"positive": 60, "negative": 40},
-        "average_confidence": 0.9
-    }
     
+    monkeypatch.setattr("src.api.main.RedditAnalyzer", Mock(return_value=mock_analyzer))
     return mock_analyzer
 
 @pytest.fixture(autouse=True)

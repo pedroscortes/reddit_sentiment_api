@@ -18,6 +18,9 @@ class PredictionResponse(BaseModel):
     confidence: float
     probabilities: Dict[str, float]
 
+    class Config:
+        frozen = True 
+
 class ModelService:
     def __init__(self):
         self.model = None
