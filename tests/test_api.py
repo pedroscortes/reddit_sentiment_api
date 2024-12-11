@@ -79,11 +79,11 @@ def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
     
-    mock_response = {
-        "sentiment": "positive",
-        "confidence": 0.9,
-        "probabilities": {"positive": 0.9, "negative": 0.1}
-    }
+    mock_response = PredictionResponse(
+        sentiment="positive",
+        confidence=0.9,
+        probabilities={"positive": 0.9, "negative": 0.1}
+    )
     
     mock_model_service.predict.return_value = mock_response
     
@@ -233,20 +233,20 @@ def test_batch_prediction_mixed_content(client):
     test_texts = ["This is great!", "This is normal"]
 
     mock_responses = [
-        {
-            "sentiment": "positive",
-            "confidence": 0.9,
-            "probabilities": {"positive": 0.9, "negative": 0.1}
-        },
-        {
-            "sentiment": "neutral",
-            "confidence": 0.6,
-            "probabilities": {"positive": 0.4, "negative": 0.6}
-        }
+        PredictionResponse(
+            sentiment="positive",
+            confidence=0.9,
+            probabilities={"positive": 0.9, "negative": 0.1}
+        ),
+        PredictionResponse(
+            sentiment="neutral",
+            confidence=0.6,
+            probabilities={"positive": 0.4, "negative": 0.6}
+        )
     ]
 
     mock_service = Mock()
-    mock_service.predict_batch.return_value = mock_responses
+    mock_service.predict_batch.return_value = [resp.model_dump() for resp in mock_responses]
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -259,7 +259,5 @@ def test_batch_prediction_mixed_content(client):
     predictions = data["predictions"]
     assert len(predictions) == len(test_texts)
     
-    for prediction in predictions:
-        assert "sentiment" in prediction
-        assert "confidence" in prediction
-        assert "probabilities" in prediction
+    assert predictions[0]["sentiment"] == "positive"
+    assert predictions[1]["sentiment"] == "neutral"
