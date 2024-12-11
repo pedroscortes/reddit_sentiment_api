@@ -172,17 +172,8 @@ def test_analyze_trend_invalid_keyword(client):
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 422
 
-def test_health_check_no_model(client):
-    """Test health check when model is not loaded."""
-    mock_service = Mock()
-    mock_service.model = None
-    
-    # Update app state correctly
-    client.app._state = {"_state": {
-        "model_service": mock_service,
-        "reddit_analyzer": Mock()
-    }}
-    
+def test_health_check_no_model(client, app_with_mocks, mock_model_service):
+    mock_model_service.model = None
     response = client.get("/health")
     assert response.status_code == 503
 

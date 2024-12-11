@@ -17,8 +17,16 @@ import time
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram, Gauge
 from starlette.responses import Response
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from functools import lru_cache
 
+@lru_cache
+def get_model_service():
+    return app.state.model_service if hasattr(app.state, 'model_service') else None
+
+@lru_cache
+def get_reddit_analyzer():
+    return app.state.reddit_analyzer if hasattr(app.state, 'reddit_analyzer') else None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -125,26 +133,22 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    if app.state.model_service.model is None:
+async def health_check(model_service: ModelService = Depends(get_model_service)):
+    if model_service is None or model_service.model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {"status": "healthy"}
 
 
 @app.post("/predict")
-async def predict(input_data: TextInput):
+async def predict(input_data: TextInput, model_service: ModelService = Depends(get_model_service)):
     """Predict sentiment for a single text."""
     start_time = time.time()
-
     try:
         metrics_manager.track_request("/predict", "POST")
-        result = app.state.model_service.predict(input_data.text)
+        result = model_service.predict(input_data.text)
         metrics_manager.track_prediction(result.sentiment)
-
         duration = time.time() - start_time
         metrics_manager.track_latency("/predict", duration)
-
         return result
     except Exception as e:
         metrics_manager.track_latency("/predict_error", time.time() - start_time)
@@ -152,49 +156,69 @@ async def predict(input_data: TextInput):
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
-async def predict_batch(input_data: BatchInput):
+async def predict_batch(
+    input_data: BatchInput,
+    model_service: ModelService = Depends(get_model_service)
+):
     """Predict sentiment for multiple texts."""
     try:
-        predictions = app.state.model_service.predict_batch(input_data.texts)
+        predictions = model_service.predict_batch(input_data.texts)
         return BatchPredictionResponse(predictions=predictions)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/analyze/subreddit")
-async def analyze_subreddit(request: SubredditRequest):
+async def analyze_subreddit(
+    request: SubredditRequest,
+    reddit_analyzer: RedditAnalyzer = Depends(get_reddit_analyzer)
+):
     """Analyze sentiment patterns in a subreddit."""
     try:
-        return await app.state.reddit_analyzer.analyze_subreddit(request.subreddit, request.time_filter, request.post_limit)
+        return await reddit_analyzer.analyze_subreddit(request.subreddit, request.time_filter, request.post_limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/analyze/url")
-async def analyze_url(request: RedditURLRequest):
+async def analyze_url(
+    request: RedditURLRequest,
+    reddit_analyzer: RedditAnalyzer = Depends(get_reddit_analyzer)
+):
     """Analyze sentiment from a Reddit URL."""
     try:
-        return await app.state.reddit_analyzer.analyze_url(request.url)
+        return await reddit_analyzer.analyze_url(request.url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/analyze/user")
-async def analyze_user(request: UserRequest):
+async def analyze_user(
+    request: UserRequest,
+    reddit_analyzer: RedditAnalyzer = Depends(get_reddit_analyzer)
+):
     """Analyze sentiment patterns of a user's comments."""
     try:
-        return await app.state.reddit_analyzer.analyze_user(request.username, request.limit)
+        return await reddit_analyzer.analyze_user(request.username, request.limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/analyze/trend")
-async def analyze_trend(request: TrendRequest):
+async def analyze_trend(
+    request: TrendRequest,
+    reddit_analyzer: RedditAnalyzer = Depends(get_reddit_analyzer)
+):
     """Analyze sentiment trends around specific keywords."""
     try:
         logger.info(f"Received trend analysis request for keyword: {request.keyword} " f"in subreddits: {request.subreddits}")
 
-        result = await app.state.reddit_analyzer.analyze_trend(request.keyword, request.subreddits, request.time_filter, request.limit)
+        result = await reddit_analyzer.analyze_trend(
+            request.keyword, 
+            request.subreddits, 
+            request.time_filter, 
+            request.limit
+        )
         return result
     except Exception as e:
         logger.error(f"Error in analyze_trend endpoint: {str(e)}", exc_info=True)

@@ -60,18 +60,14 @@ def mock_reddit():
 
 @pytest.fixture
 def mock_model_service():
-    """Mock model service for testing"""
     mock = Mock()
     mock.model = Mock()
     mock.predict.return_value = {"sentiment": "positive", "confidence": 0.95}
-    mock.predict_batch.return_value = [
-        {"sentiment": "positive", "confidence": 0.95}
-    ]
+    mock.predict_batch.return_value = [{"sentiment": "positive", "confidence": 0.95}]
     return mock
 
 @pytest.fixture
 def mock_reddit_analyzer():
-    """Mock Reddit analyzer for testing"""
     mock = Mock()
     mock.analyze_url = AsyncMock(return_value={
         "comments": [{"sentiment": "positive", "confidence": 0.95}],
@@ -93,22 +89,25 @@ def mock_reddit_analyzer():
     return mock
 
 @pytest.fixture
-def client(mock_model_service, mock_reddit_analyzer):
-    """Test client with mocked dependencies"""
-    from src.api.main import app
+def app_with_mocks(mock_model_service, mock_reddit_analyzer):
+    from src.api.main import app, get_model_service, get_reddit_analyzer
+    
+    def override_get_model_service():
+        return mock_model_service
+        
+    def override_get_reddit_analyzer():
+        return mock_reddit_analyzer
+    
+    app.dependency_overrides[get_model_service] = override_get_model_service
+    app.dependency_overrides[get_reddit_analyzer] = override_get_reddit_analyzer
+    return app
+
+
+@pytest.fixture
+def client(app_with_mocks):
     from fastapi.testclient import TestClient
-    
-    def get_test_client():
-        app._state = {"_state": {
-            "model_service": mock_model_service,
-            "reddit_analyzer": mock_reddit_analyzer
-        }}
-        return TestClient(app)
-    
-    test_client = get_test_client()
-    yield test_client
-    
-    app._state = {"_state": {}}
+    with TestClient(app_with_mocks) as test_client:
+        yield test_client
 
 @pytest.fixture(autouse=True)
 def mock_torch_device():
