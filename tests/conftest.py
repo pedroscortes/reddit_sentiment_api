@@ -79,37 +79,24 @@ def mock_model_service():
     return mock
 
 @pytest.fixture
-def mock_reddit_analyzer(monkeypatch):
-    """Mock RedditAnalyzer for all tests"""
+def mock_reddit_analyzer():
     mock = AsyncMock()
     
-    mock.analyze_trend = AsyncMock(return_value={
-        "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40},
-        "subreddits_analyzed": 2
-    })
-
-    mock.analyze_url = AsyncMock(return_value={
-        "comments": [{"sentiment": "positive", "confidence": 0.95}],
-        "overall_sentiment": {"positive": 75, "negative": 25},
-        "comments_analyzed": 1
-    })
-
-    mock.analyze_subreddit = AsyncMock(return_value={
-        "posts": [{"title": "Test Post", "sentiment": "positive"}],
-        "sentiment_distribution": {"positive": 60, "negative": 40},
-        "average_confidence": 0.9
-    })
-
-    mock.analyze_user = AsyncMock(return_value={
-        "comments": [{"text": "Test", "sentiment": "positive"}],
-        "sentiment_distribution": {"positive": 60, "negative": 40},
-        "average_confidence": 0.9
-    })
-
-    mock_class = Mock(return_value=mock)
-    monkeypatch.setattr("src.api.main.RedditAnalyzer", mock_class)
+    async def analyze_trend(*args, **kwargs):
+        return {
+            "trend_data": [],
+            "overall_sentiment": {"positive": 60, "negative": 40},
+            "subreddits_analyzed": 2
+        }
+    
+    mock.analyze_trend = AsyncMock(side_effect=analyze_trend)
     return mock
+
+@pytest.fixture(autouse=True)
+def setup_reddit_analyzer(monkeypatch, mock_reddit_analyzer):
+    """Set up RedditAnalyzer mock for all tests"""
+    mock_class = Mock(return_value=mock_reddit_analyzer)
+    monkeypatch.setattr("src.api.main.RedditAnalyzer", mock_class)
 
 @pytest.fixture(autouse=True)
 def setup_test_state(mock_model_service, mock_reddit_analyzer):

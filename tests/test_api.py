@@ -79,17 +79,22 @@ def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
     
-    mock_model_service.predict.return_value = {
+    mock_response = {
         "sentiment": "positive",
         "confidence": 0.9,
         "probabilities": {"positive": 0.9, "negative": 0.1}
     }
+    mock_model_service.predict = Mock(return_value=mock_response)
     
+    if hasattr(app.state, 'model_service'):
+        delattr(app.state, 'model_service')
     app.state.model_service = mock_model_service
-    
+
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
-    assert "sentiment" in response.json()
+    data = response.json()
+    assert data["sentiment"] == "positive"
+    assert data["confidence"] == 0.9
 
 def test_predict_batch_endpoint(client):
     test_input = {"texts": ["This is test 1", "This is test 2"]}
@@ -240,7 +245,8 @@ def test_batch_prediction_mixed_content(client, mock_model_service):
         }
     ]
     
-    mock_model_service.predict_batch.return_value = mock_responses
+    mock_model_service = Mock()
+    mock_model_service.predict_batch = Mock(return_value=mock_responses)
     
     if hasattr(app.state, 'model_service'):
         delattr(app.state, 'model_service')
