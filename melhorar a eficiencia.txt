@@ -1,0 +1,11 @@
+melhorar a eficiencia do time de atendimento
+
+hj usam algumas queries para auxiliar no atendimento (metabase), dois locais de trabalho admin e metabase
+
+1 - metabase vai morrer, direcionar direto pro databricks
+
+2 - consolidar as queries no explo
+
+3 - avaliar separar por cx empresa cx colaborador
+
+4 - inicio da semana q vem a designer tb vai fazer dinamica pra divisao7
