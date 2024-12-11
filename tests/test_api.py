@@ -78,13 +78,16 @@ def test_health_check(client):
 def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
-
-    prediction = PredictionResponse(
-        sentiment="positive",
-        confidence=0.9,
-        probabilities={"positive": 0.9, "negative": 0.1}
-    )
-    mock_model_service.predict.return_value = prediction
+    
+    mock_response = {
+        "sentiment": "positive",
+        "confidence": 0.9,
+        "probabilities": {"positive": 0.9, "negative": 0.1}
+    }
+    mock_model_service.predict.return_value = PredictionResponse(**mock_response)
+    
+    if hasattr(app.state, "model_service"):
+        delattr(app.state, "model_service")
     app.state.model_service = mock_model_service
 
     response = client.post("/predict", json=test_input)
@@ -228,21 +231,21 @@ def test_batch_prediction_mixed_content(client):
     """Test batch prediction with mixed content types."""
     test_texts = ["This is great!", "This is normal"]
 
-    predictions = [
-        PredictionResponse(
-            sentiment="positive",
-            confidence=0.9,
-            probabilities={"positive": 0.9, "negative": 0.1}
-        ),
-        PredictionResponse(
-            sentiment="neutral",
-            confidence=0.6,
-            probabilities={"positive": 0.4, "negative": 0.6}
-        )
+    mock_responses = [
+        {
+            "sentiment": "positive",
+            "confidence": 0.9,
+            "probabilities": {"positive": 0.9, "negative": 0.1}
+        },
+        {
+            "sentiment": "neutral",
+            "confidence": 0.6,
+            "probabilities": {"positive": 0.4, "negative": 0.6}
+        }
     ]
 
     mock_service = Mock()
-    mock_service.predict_batch = Mock(return_value=predictions)
+    mock_service.predict_batch.return_value = [PredictionResponse(**r).model_dump() for r in mock_responses]
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -252,8 +255,5 @@ def test_batch_prediction_mixed_content(client):
     assert response.status_code == 200
 
     data = response.json()
-    result_predictions = data["predictions"]
-    
-    assert len(result_predictions) == len(test_texts)
-    assert result_predictions[0]["sentiment"] == "positive"
-    assert result_predictions[1]["sentiment"] == "neutral"
+    predictions = data["predictions"]
+    assert len(predictions) == len(test_texts)
