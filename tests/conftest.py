@@ -60,50 +60,60 @@ def mock_reddit():
 def mock_model_service():
     mock = Mock()
     mock.model = Mock()
-    mock.predict.return_value = {
+    simple_response = {
         "sentiment": "positive",
         "confidence": 0.95,
         "probabilities": {"positive": 0.95, "negative": 0.05}
     }
-    mock.predict_batch.return_value = [
-        {
-            "sentiment": "positive",
-            "confidence": 0.95,
-            "probabilities": {"positive": 0.95, "negative": 0.05}
-        },
-        {
-            "sentiment": "neutral",
-            "confidence": 0.9,
-            "probabilities": {"positive": 0.5, "negative": 0.5}
-        }
-    ]
+    mock.predict = Mock(return_value=simple_response)
+
+    def mock_predict_batch(texts):
+        return [
+            {
+                "sentiment": "positive",
+                "confidence": 0.9,
+                "probabilities": {"positive": 0.9, "negative": 0.1}
+            } for _ in texts
+        ]
+    mock.predict_batch = mock_predict_batch
     return mock
 
 @pytest.fixture
 def mock_reddit_analyzer():
     mock = Mock()
-    trend_result = {
-        "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40},
-        "subreddits_analyzed": 2
-    }
-    mock.analyze_trend = AsyncMock(return_value=trend_result)
-    mock.analyze_url = AsyncMock(return_value={
-        "comments": [{"sentiment": "positive", "confidence": 0.95}],
-        "overall_sentiment": {"positive": 75, "negative": 25},
-        "comments_analyzed": 1,
-        "post": {"title": "Test Post", "sentiment": "positive", "confidence": 0.95}
-    })
-    mock.analyze_subreddit = AsyncMock(return_value={
-        "posts": [{"title": "Test Post", "sentiment": "positive"}],
-        "sentiment_distribution": {"positive": 60, "negative": 40},
-        "average_confidence": 0.9
-    })
-    mock.analyze_user = AsyncMock(return_value={
-        "comments": [{"text": "Test", "sentiment": "positive"}],
-        "sentiment_distribution": {"positive": 60, "negative": 40},
-        "average_confidence": 0.9
-    })
+    
+    async def mock_trend(*args, **kwargs):
+        return {
+            "trend_data": [],
+            "overall_sentiment": {"positive": 60, "negative": 40},
+            "subreddits_analyzed": 2
+        }
+    mock.analyze_trend = mock_trend
+
+    async def mock_url(*args, **kwargs):
+        return {
+            "comments": [{"sentiment": "positive", "confidence": 0.95}],
+            "overall_sentiment": {"positive": 75, "negative": 25},
+            "comments_analyzed": 1
+        }
+    mock.analyze_url = mock_url
+
+    async def mock_subreddit(*args, **kwargs):
+        return {
+            "posts": [{"title": "Test Post", "sentiment": "positive"}],
+            "sentiment_distribution": {"positive": 60, "negative": 40},
+            "average_confidence": 0.9
+        }
+    mock.analyze_subreddit = mock_subreddit
+
+    async def mock_user(*args, **kwargs):
+        return {
+            "comments": [{"text": "Test", "sentiment": "positive"}],
+            "sentiment_distribution": {"positive": 60, "negative": 40},
+            "average_confidence": 0.9
+        }
+    mock.analyze_user = mock_user
+
     return mock
 
 @pytest.fixture(autouse=True)
