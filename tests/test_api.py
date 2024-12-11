@@ -84,7 +84,8 @@ def test_predict_endpoint(client, mock_model_service):
         "confidence": 0.9,
         "probabilities": {"positive": 0.9, "negative": 0.1}
     }
-    mock_model_service.predict.return_value = PredictionResponse(**mock_response)
+    
+    mock_model_service.predict.return_value = mock_response
     
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -245,7 +246,7 @@ def test_batch_prediction_mixed_content(client):
     ]
 
     mock_service = Mock()
-    mock_service.predict_batch.return_value = [PredictionResponse(**r).model_dump() for r in mock_responses]
+    mock_service.predict_batch.return_value = mock_responses
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -257,3 +258,8 @@ def test_batch_prediction_mixed_content(client):
     data = response.json()
     predictions = data["predictions"]
     assert len(predictions) == len(test_texts)
+    
+    for prediction in predictions:
+        assert "sentiment" in prediction
+        assert "confidence" in prediction
+        assert "probabilities" in prediction
