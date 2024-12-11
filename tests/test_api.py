@@ -227,16 +227,23 @@ def test_batch_prediction_mixed_content(client, mock_model_service):
     """Test batch prediction with mixed content types."""
     test_texts = ["This is great!", "This is normal"]
     
-    def mock_predict_batch(texts):
-        return [
-            PredictionResponse(
-                sentiment="positive" if i == 0 else "neutral",
-                confidence=0.9,
-                probabilities={"positive": 0.9 if i == 0 else 0.5, "negative": 0.1 if i == 0 else 0.5}
-            ) for i in range(len(texts))
-        ]
+    mock_responses = [
+        {
+            "sentiment": "positive",
+            "confidence": 0.9,
+            "probabilities": {"positive": 0.9, "negative": 0.1}
+        },
+        {
+            "sentiment": "neutral",
+            "confidence": 0.6,
+            "probabilities": {"positive": 0.4, "negative": 0.6}
+        }
+    ]
     
-    mock_model_service.predict_batch.side_effect = mock_predict_batch
+    mock_model_service.predict_batch.return_value = mock_responses
+    
+    if hasattr(app.state, 'model_service'):
+        delattr(app.state, 'model_service')
     app.state.model_service = mock_model_service
 
     response = client.post("/predict/batch", json={"texts": test_texts})
@@ -245,3 +252,5 @@ def test_batch_prediction_mixed_content(client, mock_model_service):
     data = response.json()
     predictions = data["predictions"]
     assert len(predictions) == len(test_texts)
+    assert predictions[0]["sentiment"] == "positive"
+    assert predictions[1]["sentiment"] == "neutral"

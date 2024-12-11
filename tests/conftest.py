@@ -79,34 +79,36 @@ def mock_model_service():
     return mock
 
 @pytest.fixture
-def mock_reddit_analyzer():
+def mock_reddit_analyzer(monkeypatch):
+    """Mock RedditAnalyzer for all tests"""
     mock = AsyncMock()
     
-    async def mock_analyze_trend(*args, **kwargs):
-        return {
-            "trend_data": [],
-            "overall_sentiment": {"positive": 60, "negative": 40},
-            "subreddits_analyzed": 2
-        }
+    mock.analyze_trend = AsyncMock(return_value={
+        "trend_data": [],
+        "overall_sentiment": {"positive": 60, "negative": 40},
+        "subreddits_analyzed": 2
+    })
 
-    async def mock_analyze_url(*args, **kwargs):
-        return {
-            "comments": [{"sentiment": "positive", "confidence": 0.95}],
-            "overall_sentiment": {"positive": 75, "negative": 25},
-            "comments_analyzed": 1
-        }
+    mock.analyze_url = AsyncMock(return_value={
+        "comments": [{"sentiment": "positive", "confidence": 0.95}],
+        "overall_sentiment": {"positive": 75, "negative": 25},
+        "comments_analyzed": 1
+    })
 
-    async def mock_analyze_subreddit(*args, **kwargs):
-        return {
-            "posts": [{"title": "Test Post", "sentiment": "positive"}],
-            "sentiment_distribution": {"positive": 60, "negative": 40},
-            "average_confidence": 0.9
-        }
+    mock.analyze_subreddit = AsyncMock(return_value={
+        "posts": [{"title": "Test Post", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 60, "negative": 40},
+        "average_confidence": 0.9
+    })
 
-    mock.analyze_trend.side_effect = mock_analyze_trend
-    mock.analyze_url.side_effect = mock_analyze_url
-    mock.analyze_subreddit.side_effect = mock_analyze_subreddit
+    mock.analyze_user = AsyncMock(return_value={
+        "comments": [{"text": "Test", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 60, "negative": 40},
+        "average_confidence": 0.9
+    })
 
+    mock_class = Mock(return_value=mock)
+    monkeypatch.setattr("src.api.main.RedditAnalyzer", mock_class)
     return mock
 
 @pytest.fixture(autouse=True)

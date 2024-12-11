@@ -148,13 +148,19 @@ async def health_check(model_service: ModelService = Depends(get_model_service))
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(input_data: TextInput, model_service: ModelService = Depends(get_model_service)):
     """Predict sentiment for a single text."""
+    start_time = time.time()
     try:
         metrics_manager.track_request("/predict", "POST")
         result = model_service.predict(input_data.text)
-        response = PredictionResponse(**result)
-        metrics_manager.track_prediction(response.sentiment)
-        return response
+        if isinstance(result, dict):
+            result = PredictionResponse(**result)
+        metrics_manager.track_prediction(result.sentiment)
+        duration = time.time() - start_time
+        metrics_manager.track_latency("/predict", duration)
+        return result
     except Exception as e:
+        logger.error(f"Error in predict endpoint: {str(e)}", exc_info=True)
+        metrics_manager.track_latency("/predict_error", time.time() - start_time)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -163,8 +169,12 @@ async def predict_batch(input_data: BatchInput, model_service: ModelService = De
     """Predict sentiment for multiple texts."""
     try:
         predictions = model_service.predict_batch(input_data.texts)
-        return BatchPredictionResponse(predictions=[PredictionResponse(**p) if isinstance(p, dict) else p for p in predictions])
+        return BatchPredictionResponse(predictions=[
+            PredictionResponse(**p) if isinstance(p, dict) else p 
+            for p in predictions
+        ])
     except Exception as e:
+        logger.error(f"Error in batch prediction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
