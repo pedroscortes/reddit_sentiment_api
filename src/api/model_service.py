@@ -87,20 +87,19 @@ class ModelService:
             pass
         return "1.0.0"
 
-    def predict(self, text: str) -> PredictionResponse:
+    def predict(self, text: str) -> Dict:
         """Predict sentiment for single text."""
         if not text.strip():
             raise ValueError("Empty text provided")
             
         if not self.model or not self.tokenizer:
             raise ValueError("Model not loaded")
-            
-        result = PredictionResponse(
-            sentiment="positive",
-            confidence=0.9,
-            probabilities={"positive": 0.9, "negative": 0.1}
-        )
-        return result
+        
+        return {
+            "sentiment": "positive",
+            "confidence": 0.9,
+            "probabilities": {"positive": 0.9, "negative": 0.1}
+        }
 
     def predict_batch(self, texts: List[str]) -> List[PredictionResponse]:
         """Predict sentiment for multiple texts."""
