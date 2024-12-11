@@ -91,12 +91,14 @@ def test_predict_endpoint(client, mock_model_service):
 
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
+    assert response.json() == mock_model_service.predict.return_value
 
 def test_predict_batch_endpoint(client):
     """Test batch prediction endpoint."""
     test_input = {"texts": ["This is test 1", "This is test 2"]}
-
-    mock_responses = [
+    
+    mock_service = Mock()
+    mock_service.predict.side_effect = [
         {
             "sentiment": "positive",
             "confidence": 0.9,
@@ -108,9 +110,6 @@ def test_predict_batch_endpoint(client):
             "probabilities": {"positive": 0.2, "negative": 0.8}
         }
     ]
-    
-    mock_service = Mock()
-    mock_service.predict_batch.return_value = mock_responses
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -129,18 +128,26 @@ def test_analyze_user_endpoint(client):
     response = client.post("/analyze/user", json=test_input)
     assert response.status_code == 200
 
-def test_analyze_trend_endpoint(client, mock_reddit_analyzer):
+def test_analyze_trend_endpoint(client):
     test_input = {
         "keyword": "python",
         "subreddits": ["programming", "learnpython"],
         "time_filter": "week",
         "limit": 10
     }
-    
+
+    mock = AsyncMock()
+    mock.analyze_trend = AsyncMock(return_value={
+        "trend_data": [],
+        "overall_sentiment": {"positive": 60, "negative": 40},
+        "subreddits_analyzed": 2,
+        "keyword": "python"
+    })
+
     if hasattr(app.state, "reddit_analyzer"):
         delattr(app.state, "reddit_analyzer")
-    app.state.reddit_analyzer = mock_reddit_analyzer
-    
+    app.state.reddit_analyzer = mock
+
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
 

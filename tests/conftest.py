@@ -85,7 +85,8 @@ def mock_reddit_analyzer():
     mock.analyze_trend = AsyncMock(return_value={
         "trend_data": [],
         "overall_sentiment": {"positive": 60, "negative": 40},
-        "subreddits_analyzed": 2
+        "subreddits_analyzed": 2,
+        "keyword": "python"
     })
     return mock
 
