@@ -14,13 +14,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PredictionResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)  
     sentiment: str
     confidence: float
     probabilities: Dict[str, float]
 
-    class Config:
-        frozen = True 
+    model_config = {
+        'frozen': True,
+        'json_schema_extra': {
+            'example': {
+                'sentiment': 'positive',
+                'confidence': 0.95,
+                'probabilities': {'positive': 0.95, 'negative': 0.05}
+            }
+        }
+    }
 
 class ModelService:
     def __init__(self):
