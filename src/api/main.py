@@ -22,11 +22,17 @@ from functools import lru_cache
 
 @lru_cache
 def get_model_service():
-    return app.state.model_service if hasattr(app.state, 'model_service') else None
+    """Get model service from app state."""
+    if not hasattr(app.state, "model_service"):
+        return None
+    return app.state.model_service
 
 @lru_cache
 def get_reddit_analyzer():
-    return app.state.reddit_analyzer if hasattr(app.state, 'reddit_analyzer') else None
+    """Get reddit analyzer from app state."""
+    if not hasattr(app.state, "reddit_analyzer"):
+        return None
+    return app.state.reddit_analyzer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

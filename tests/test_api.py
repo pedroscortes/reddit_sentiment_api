@@ -211,7 +211,7 @@ def test_metrics_endpoint(client, monkeypatch):
     assert data["system"]["memory_mb"] > 0
     assert isinstance(data["requests"]["total"], (int, float))
 
-def test_batch_prediction_mixed_content(client, monkeypatch):
+def test_batch_prediction_mixed_content(client, mock_model_service):
     """Test batch prediction with mixed content types."""
     def mock_predict_batch(texts):
         results = []
@@ -223,31 +223,14 @@ def test_batch_prediction_mixed_content(client, monkeypatch):
             results.append({"sentiment": sentiment, "confidence": 0.9})
         return results
 
-    mock_service = Mock()
-    mock_service.predict_batch = mock_predict_batch
-    client.app.state.model_service = mock_service
+    mock_model_service.predict_batch = mock_predict_batch
+    app.state.model_service = mock_model_service
 
     test_texts = ["This is great!", "This is normal"]
     response = client.post("/predict/batch", json={"texts": test_texts})
     assert response.status_code == 200
-    
-    mock_service = Mock()
-    mock_service.predict_batch = mock_predict_batch
-    
-    monkeypatch.setattr("src.api.main.model_service", mock_service)
-    
-    test_input = {
-        "texts": [
-            "This is great!",
-            "This is bad.",
-            "This is neutral."
-        ]
-    }
-    response = client.post("/predict/batch", json=test_input)
-    
-    assert response.status_code == 200
-    results = response.json()["predictions"]
-    assert len(results) == 3
-    assert results[0]["sentiment"] == "positive"
-    assert results[1]["sentiment"] == "negative"
-    assert results[2]["sentiment"] == "neutral"
+
+    predictions = response.json()["predictions"]
+    assert len(predictions) == 2
+    assert predictions[0]["sentiment"] == "positive"
+    assert predictions[1]["sentiment"] == "neutral"

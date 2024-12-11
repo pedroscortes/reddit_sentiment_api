@@ -9,13 +9,11 @@ from src.api.main import app, get_model_service, get_reddit_analyzer
 
 @pytest.fixture(autouse=True)
 def mock_mlflow_tracking():
-    """Mock MLflow tracking for all tests"""
     with patch('mlflow.set_tracking_uri'), patch('mlflow.set_experiment'):
         yield
 
 @pytest.fixture(autouse=True)
 def mock_env():
-    """Set up test environment variables"""
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     os.environ['REDDIT_CLIENT_ID'] = 'test_client_id'
     os.environ['REDDIT_CLIENT_SECRET'] = 'test_client_secret'
@@ -63,7 +61,9 @@ def mock_model_service():
     mock = Mock()
     mock.model = Mock()
     mock.predict.return_value = {"sentiment": "positive", "confidence": 0.95}
-    mock.predict_batch.return_value = [{"sentiment": "positive", "confidence": 0.95}]
+    mock.predict_batch.return_value = [
+        {"sentiment": "positive", "confidence": 0.95}
+    ]
     return mock
 
 @pytest.fixture
@@ -105,19 +105,12 @@ def app_with_mocks(mock_model_service, mock_reddit_analyzer):
 @pytest.fixture
 def client(mock_model_service, mock_reddit_analyzer):
     """Set up FastAPI test client with mocked dependencies"""
-    def override_get_model_service():
-        return mock_model_service
-
-    def override_get_reddit_analyzer():
-        return mock_reddit_analyzer
-
-    app.dependency_overrides[get_model_service] = override_get_model_service
-    app.dependency_overrides[get_reddit_analyzer] = override_get_reddit_analyzer
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
+    app.state.model_service = mock_model_service
+    app.state.reddit_analyzer = mock_reddit_analyzer
+    
+    client = TestClient(app)
+    
+    return client
 
 @pytest.fixture(autouse=True)
 def mock_torch_device():
