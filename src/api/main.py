@@ -148,19 +148,13 @@ async def health_check(model_service: ModelService = Depends(get_model_service))
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(input_data: TextInput, model_service: ModelService = Depends(get_model_service)):
     """Predict sentiment for a single text."""
-    start_time = time.time()
     try:
-        metrics_manager.track_request("/predict", "POST")
         result = model_service.predict(input_data.text)
-        if isinstance(result, dict):
+        if not isinstance(result, PredictionResponse):
             result = PredictionResponse(**result)
-        metrics_manager.track_prediction(result.sentiment)
-        duration = time.time() - start_time
-        metrics_manager.track_latency("/predict", duration)
         return result
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}", exc_info=True)
-        metrics_manager.track_latency("/predict_error", time.time() - start_time)
         raise HTTPException(status_code=500, detail=str(e))
 
 

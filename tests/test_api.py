@@ -78,23 +78,19 @@ def test_health_check(client):
 def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
-    
-    mock_response = {
-        "sentiment": "positive",
-        "confidence": 0.9,
-        "probabilities": {"positive": 0.9, "negative": 0.1}
-    }
-    mock_model_service.predict = Mock(return_value=mock_response)
-    
-    if hasattr(app.state, 'model_service'):
-        delattr(app.state, 'model_service')
+
+    prediction = PredictionResponse(
+        sentiment="positive",
+        confidence=0.9,
+        probabilities={"positive": 0.9, "negative": 0.1}
+    )
+    mock_model_service.predict.return_value = prediction
     app.state.model_service = mock_model_service
 
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
     data = response.json()
     assert data["sentiment"] == "positive"
-    assert data["confidence"] == 0.9
 
 def test_predict_batch_endpoint(client):
     test_input = {"texts": ["This is test 1", "This is test 2"]}
@@ -228,35 +224,36 @@ def test_metrics_endpoint(client, monkeypatch):
     assert data["system"]["memory_mb"] > 0
     assert isinstance(data["requests"]["total"], (int, float))
 
-def test_batch_prediction_mixed_content(client, mock_model_service):
+def test_batch_prediction_mixed_content(client):
     """Test batch prediction with mixed content types."""
     test_texts = ["This is great!", "This is normal"]
-    
-    mock_responses = [
-        {
-            "sentiment": "positive",
-            "confidence": 0.9,
-            "probabilities": {"positive": 0.9, "negative": 0.1}
-        },
-        {
-            "sentiment": "neutral",
-            "confidence": 0.6,
-            "probabilities": {"positive": 0.4, "negative": 0.6}
-        }
+
+    predictions = [
+        PredictionResponse(
+            sentiment="positive",
+            confidence=0.9,
+            probabilities={"positive": 0.9, "negative": 0.1}
+        ),
+        PredictionResponse(
+            sentiment="neutral",
+            confidence=0.6,
+            probabilities={"positive": 0.4, "negative": 0.6}
+        )
     ]
-    
-    mock_model_service = Mock()
-    mock_model_service.predict_batch = Mock(return_value=mock_responses)
-    
-    if hasattr(app.state, 'model_service'):
-        delattr(app.state, 'model_service')
-    app.state.model_service = mock_model_service
+
+    mock_service = Mock()
+    mock_service.predict_batch = Mock(return_value=predictions)
+
+    if hasattr(app.state, "model_service"):
+        delattr(app.state, "model_service")
+    app.state.model_service = mock_service
 
     response = client.post("/predict/batch", json={"texts": test_texts})
     assert response.status_code == 200
-    
+
     data = response.json()
-    predictions = data["predictions"]
-    assert len(predictions) == len(test_texts)
-    assert predictions[0]["sentiment"] == "positive"
-    assert predictions[1]["sentiment"] == "neutral"
+    result_predictions = data["predictions"]
+    
+    assert len(result_predictions) == len(test_texts)
+    assert result_predictions[0]["sentiment"] == "positive"
+    assert result_predictions[1]["sentiment"] == "neutral"

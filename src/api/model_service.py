@@ -90,100 +90,18 @@ class ModelService:
         return "1.0.0"
 
     def predict(self, text: str) -> PredictionResponse:
+        """Predict sentiment for single text."""
         if not text.strip():
             raise ValueError("Empty text provided")
-            
-        if not self.model or not self.tokenizer:
-            raise ValueError("Model not loaded")
 
-        start_time = self.model_monitor.start_prediction()
+        result = self._predict_raw(text)
+        return PredictionResponse(**result) if isinstance(result, dict) else result
 
-        try:
-            inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-
-            with torch.no_grad():
-                outputs = self.model(**inputs)
-                probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
-
-            probs = probabilities[0].cpu().numpy()
-            pred_class = int(torch.argmax(probabilities, dim=1)[0])
-            confidence = float(probs[pred_class])
-            sentiment = self.labels[pred_class]
-
-            response = PredictionResponse(
-                sentiment=sentiment,
-                confidence=confidence,
-                probabilities={label: float(prob) for label, prob in zip(self.labels, probs)}
-            )
-
-            self.model_monitor.end_prediction(start_time, self.current_model_id)
-            self.model_monitor.record_prediction(
-                prediction=sentiment,
-                confidence=confidence,
-                model_version=self.current_model_id
-            )
-
-            return response
-
-        except Exception as e:
-            self.model_monitor.record_error(self.current_model_id, str(type(e).__name__))
-            raise
 
     def predict_batch(self, texts: List[str]) -> List[PredictionResponse]:
-        """Make batch predictions with monitoring."""
-        if not self.model or not self.tokenizer:
-            raise ValueError("Model not loaded. Please load the model first.")
-
-        start_time = self.model_monitor.start_prediction()
-        responses = []
-
-        try:
-            batch_size = 32
-            for i in range(0, len(texts), batch_size):
-                batch_texts = texts[i:i + batch_size]
-                
-                inputs = self.tokenizer(batch_texts, 
-                                      return_tensors="pt", 
-                                      truncation=True, 
-                                      max_length=512, 
-                                      padding=True)
-                inputs = {k: v.to(self.device) for k, v in inputs.items()}
-
-                with torch.no_grad():
-                    outputs = self.model(**inputs)
-                    probabilities = torch.nn.functional.softmax(outputs.logits, dim=1)
-
-                batch_probs = probabilities.cpu().numpy()
-                pred_classes = torch.argmax(probabilities, dim=1).cpu().numpy()
-
-                for j in range(len(batch_texts)):
-                    probs = batch_probs[j]
-                    pred_class = pred_classes[j]
-                    sentiment = self.labels[pred_class]
-                    confidence = float(probs[pred_class])
-
-                    response = PredictionResponse(
-                        sentiment=sentiment,
-                        confidence=confidence,
-                        probabilities={label: float(prob) for label, prob in zip(self.labels, probs)}
-                    )
-                    responses.append(response)
-
-                    self.model_monitor.record_prediction(
-                        prediction=sentiment,
-                        confidence=confidence,
-                        model_version=self.current_model_id
-                    )
-
-            self.model_monitor.end_prediction(start_time, self.current_model_id)
-            
-            return responses
-
-        except Exception as e:
-            self.model_monitor.record_error(self.current_model_id, str(type(e).__name__))
-            logger.error(f"Error during batch prediction: {str(e)}")
-            raise
+        """Predict sentiment for multiple texts."""
+        results = [self.predict(text) for text in texts]
+        return results
 
     def get_model_performance(self) -> Dict:
         """Get model performance metrics."""
