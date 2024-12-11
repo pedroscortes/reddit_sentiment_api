@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from src.api.main import app
+from src.api.model_service import PredictionResponse
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 
