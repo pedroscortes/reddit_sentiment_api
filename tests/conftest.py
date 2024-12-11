@@ -5,7 +5,7 @@ import torch
 from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-from src.api.main import app
+from src.api.main import app, get_model_service, get_reddit_analyzer
 
 @pytest.fixture(autouse=True)
 def mock_mlflow_tracking():
@@ -74,10 +74,6 @@ def mock_reddit_analyzer():
         "overall_sentiment": {"positive": 75, "negative": 25},
         "comments_analyzed": 1
     })
-    mock.analyze_trend = AsyncMock(return_value={
-        "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40}
-    })
     mock.analyze_subreddit = AsyncMock(return_value={
         "posts": [],
         "sentiment_distribution": {"positive": 60, "negative": 40}
@@ -85,6 +81,10 @@ def mock_reddit_analyzer():
     mock.analyze_user = AsyncMock(return_value={
         "comments": [],
         "sentiment_distribution": {"positive": 60, "negative": 40}
+    })
+    mock.analyze_trend = AsyncMock(return_value={
+        "trend_data": [],
+        "overall_sentiment": {"positive": 60, "negative": 40}
     })
     return mock
 
@@ -102,12 +102,22 @@ def app_with_mocks(mock_model_service, mock_reddit_analyzer):
     app.dependency_overrides[get_reddit_analyzer] = override_get_reddit_analyzer
     return app
 
-
 @pytest.fixture
-def client(app_with_mocks):
-    from fastapi.testclient import TestClient
-    with TestClient(app_with_mocks) as test_client:
+def client(mock_model_service, mock_reddit_analyzer):
+    """Set up FastAPI test client with mocked dependencies"""
+    def override_get_model_service():
+        return mock_model_service
+
+    def override_get_reddit_analyzer():
+        return mock_reddit_analyzer
+
+    app.dependency_overrides[get_model_service] = override_get_model_service
+    app.dependency_overrides[get_reddit_analyzer] = override_get_reddit_analyzer
+
+    with TestClient(app) as test_client:
         yield test_client
+
+    app.dependency_overrides.clear()
 
 @pytest.fixture(autouse=True)
 def mock_torch_device():
