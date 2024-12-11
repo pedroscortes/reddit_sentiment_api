@@ -61,6 +61,15 @@ def mock_reddit_analyzer(monkeypatch):
     monkeypatch.setattr("src.api.main.RedditAnalyzer", Mock(return_value=mock_analyzer))
     return mock_analyzer
 
+@pytest.fixture
+def prediction_response():
+    """Fixture for a standard prediction response."""
+    return {
+        "sentiment": "positive",
+        "confidence": 0.9,
+        "probabilities": {"positive": 0.9, "negative": 0.1}
+    }
+
 def test_analyze_url_endpoint(client):
     test_input = {"url": "https://www.reddit.com/r/python/comments/123abc/test_post"}
     response = client.post("/analyze/url", json=test_input)
@@ -75,42 +84,32 @@ def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
 
-def test_predict_endpoint(client):
+def test_predict_endpoint(client, prediction_response):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
-    
     mock_service = Mock()
-    mock_service.predict.return_value = {
-        "sentiment": "positive",
-        "confidence": 0.9,
-        "probabilities": {"positive": 0.9, "negative": 0.1}
-    }
-    
+    mock_service.predict = Mock(return_value=prediction_response)
     app.state.model_service = mock_service
-
+    
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
-    assert response.json() == mock_service.predict.return_value
+    assert response.json() == prediction_response
 
 
-def test_predict_batch_endpoint(client):
+def test_predict_batch_endpoint(client, prediction_response):
     """Test batch prediction endpoint."""
     test_input = {"texts": ["This is test 1", "This is test 2"]}
     
     mock_service = Mock()
-    mock_response = {
-        "sentiment": "positive",
-        "confidence": 0.9,
-        "probabilities": {"positive": 0.9, "negative": 0.1}
-    }
-    mock_service.predict = Mock(return_value=mock_response)
-    
+    mock_service.predict = Mock(side_effect=[prediction_response.copy(), prediction_response.copy()])
     app.state.model_service = mock_service
-
+    
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
     data = response.json()
-    assert len(data["predictions"]) == len(test_input["texts"])
+    assert len(data["predictions"]) == 2
+    assert data["predictions"][0] == prediction_response
+    assert data["predictions"][1] == prediction_response
 
 def test_analyze_subreddit_endpoint(client):
     test_input = {"subreddit": "python", "time_filter": "week", "post_limit": 10}
@@ -131,19 +130,24 @@ def test_analyze_trend_endpoint(client):
         "limit": 10
     }
 
-    mock_analyzer = AsyncMock()
-    mock_analyzer.analyze_trend.return_value = {
+    trend_response = {
         "trend_data": [],
         "overall_sentiment": {"positive": 60, "negative": 40},
         "subreddits_analyzed": 2,
         "keyword": "python"
     }
+    
+    class AsyncRedditAnalyzer:
+        def analyze_trend(self, *args, **kwargs):
+            async def _analyze():
+                return trend_response
+            return _analyze()
 
-    app.state.reddit_analyzer = mock_analyzer
-
+    app.state.reddit_analyzer = AsyncRedditAnalyzer()
+    
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
-    assert response.json() == mock_analyzer.analyze_trend.return_value
+    assert response.json() == trend_response
 
 def test_predict_empty_text(client):
     test_input = {"text": ""}
@@ -252,21 +256,25 @@ def test_metrics_endpoint(client, monkeypatch):
     assert data["system"]["memory_mb"] > 0
     assert isinstance(data["requests"]["total"], (int, float))
 
-def test_batch_prediction_mixed_content(client):
+def test_batch_prediction_mixed_content(client, prediction_response):
     """Test batch prediction with mixed content types."""
     test_input = {"texts": ["This is great!", "This is normal"]}
     
     mock_service = Mock()
-    mock_response = {
-        "sentiment": "positive",
-        "confidence": 0.9,
-        "probabilities": {"positive": 0.9, "negative": 0.1}
-    }
-    mock_service.predict = Mock(return_value=mock_response)
+    positive_response = prediction_response.copy()
+    neutral_response = prediction_response.copy()
+    neutral_response.update({
+        "sentiment": "neutral",
+        "confidence": 0.6,
+        "probabilities": {"positive": 0.4, "negative": 0.6}
+    })
     
+    mock_service.predict = Mock(side_effect=[positive_response, neutral_response])
     app.state.model_service = mock_service
-
+    
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
     data = response.json()
-    assert len(data["predictions"]) == len(test_input["texts"])
+    assert len(data["predictions"]) == 2
+    assert data["predictions"][0] == positive_response
+    assert data["predictions"][1] == neutral_response

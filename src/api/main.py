@@ -150,13 +150,10 @@ async def predict(input_data: TextInput, model_service: ModelService = Depends(g
     """Predict sentiment for a single text."""
     try:
         result = model_service.predict(input_data.text)
-        if isinstance(result, dict):
-            return result
-        return result.model_dump()
+        return result
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
 async def predict_batch(input_data: BatchInput, model_service: ModelService = Depends(get_model_service)):
