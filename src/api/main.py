@@ -145,31 +145,25 @@ async def health_check(model_service: ModelService = Depends(get_model_service))
     return {"status": "healthy"}
 
 
-@app.post("/predict")
+@app.post("/predict", response_model=PredictionResponse)
 async def predict(input_data: TextInput, model_service: ModelService = Depends(get_model_service)):
     """Predict sentiment for a single text."""
-    start_time = time.time()
     try:
         metrics_manager.track_request("/predict", "POST")
         result = model_service.predict(input_data.text)
-        metrics_manager.track_prediction(result.sentiment)
-        duration = time.time() - start_time
-        metrics_manager.track_latency("/predict", duration)
-        return result
+        response = PredictionResponse(**result)
+        metrics_manager.track_prediction(response.sentiment)
+        return response
     except Exception as e:
-        metrics_manager.track_latency("/predict_error", time.time() - start_time)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
-async def predict_batch(
-    input_data: BatchInput,
-    model_service: ModelService = Depends(get_model_service)
-):
+async def predict_batch(input_data: BatchInput, model_service: ModelService = Depends(get_model_service)):
     """Predict sentiment for multiple texts."""
     try:
         predictions = model_service.predict_batch(input_data.texts)
-        return {"predictions": predictions}  
+        return BatchPredictionResponse(predictions=[PredictionResponse(**p) if isinstance(p, dict) else p for p in predictions])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
