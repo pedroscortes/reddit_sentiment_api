@@ -95,18 +95,16 @@ class ModelService:
         if not self.model or not self.tokenizer:
             raise ValueError("Model not loaded")
             
-        return PredictionResponse(
+        result = PredictionResponse(
             sentiment="positive",
             confidence=0.9,
             probabilities={"positive": 0.9, "negative": 0.1}
         )
+        return result
 
-    def predict_batch(self, texts: List[str]) -> List[Dict]:
+    def predict_batch(self, texts: List[str]) -> List[PredictionResponse]:
         """Predict sentiment for multiple texts."""
-        return [
-            self.predict(text).model_dump()
-            for text in texts
-        ]
+        return [self.predict(text) for text in texts]
 
     def get_model_performance(self) -> Dict:
         """Get model performance metrics."""

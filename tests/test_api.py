@@ -79,19 +79,13 @@ def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
     
-    from unittest.mock import MagicMock
-    
-    mock_result = MagicMock()
-    mock_result.sentiment = "positive"
-    mock_result.confidence = 0.9
-    mock_result.probabilities = {"positive": 0.9, "negative": 0.1}
-    mock_result.model_dump.return_value = {
+    response_dict = {
         "sentiment": "positive",
         "confidence": 0.9,
         "probabilities": {"positive": 0.9, "negative": 0.1}
     }
     
-    mock_model_service.predict.return_value = mock_result
+    mock_model_service.predict.return_value = PredictionResponse(**response_dict)
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -100,10 +94,32 @@ def test_predict_endpoint(client, mock_model_service):
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
     data = response.json()
-    assert data["sentiment"] == "positive"
+    assert data == response_dict
 
 def test_predict_batch_endpoint(client):
+    """Test batch prediction endpoint."""
     test_input = {"texts": ["This is test 1", "This is test 2"]}
+
+    mock_responses = [
+        PredictionResponse(
+            sentiment="positive",
+            confidence=0.9,
+            probabilities={"positive": 0.9, "negative": 0.1}
+        ),
+        PredictionResponse(
+            sentiment="negative",
+            confidence=0.8,
+            probabilities={"positive": 0.2, "negative": 0.8}
+        )
+    ]
+    
+    mock_service = Mock()
+    mock_service.predict_batch.return_value = mock_responses
+
+    if hasattr(app.state, "model_service"):
+        delattr(app.state, "model_service")
+    app.state.model_service = mock_service
+
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
 
@@ -238,28 +254,21 @@ def test_batch_prediction_mixed_content(client):
     """Test batch prediction with mixed content types."""
     test_texts = ["This is great!", "This is normal"]
 
-    from unittest.mock import MagicMock
-    
-    mock_responses = []
-    for i, _ in enumerate(test_texts):
-        mock_result = MagicMock()
-        mock_result.sentiment = "positive" if i == 0 else "neutral"
-        mock_result.confidence = 0.9 if i == 0 else 0.6
-        mock_result.probabilities = (
-            {"positive": 0.9, "negative": 0.1}
-            if i == 0
-            else {"positive": 0.4, "negative": 0.6}
+    mock_responses = [
+        PredictionResponse(
+            sentiment="positive",
+            confidence=0.9,
+            probabilities={"positive": 0.9, "negative": 0.1}
+        ),
+        PredictionResponse(
+            sentiment="neutral",
+            confidence=0.6,
+            probabilities={"positive": 0.4, "negative": 0.6}
         )
-        mock_result.model_dump.return_value = {
-            "sentiment": mock_result.sentiment,
-            "confidence": mock_result.confidence,
-            "probabilities": mock_result.probabilities
-        }
-        mock_responses.append(mock_result)
+    ]
 
     mock_service = Mock()
-    mock_service.predict_batch.return_value = [r.model_dump() for r in mock_responses]
-    mock_service.predict.side_effect = lambda text: mock_responses[test_texts.index(text)]
+    mock_service.predict_batch.return_value = mock_responses
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
