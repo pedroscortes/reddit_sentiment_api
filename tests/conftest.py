@@ -5,7 +5,7 @@ import torch
 from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-from src.api.main import app, get_model_service, get_reddit_analyzer
+from src.api.main import app
 
 @pytest.fixture(autouse=True)
 def mock_mlflow_tracking():
@@ -60,9 +60,22 @@ def mock_reddit():
 def mock_model_service():
     mock = Mock()
     mock.model = Mock()
-    mock.predict.return_value = {"sentiment": "positive", "confidence": 0.95}
+    mock.predict.return_value = {
+        "sentiment": "positive",
+        "confidence": 0.95,
+        "probabilities": {"positive": 0.95, "negative": 0.05}
+    }
     mock.predict_batch.return_value = [
-        {"sentiment": "positive", "confidence": 0.95}
+        {
+            "sentiment": "positive",
+            "confidence": 0.95,
+            "probabilities": {"positive": 0.95, "negative": 0.05}
+        },
+        {
+            "sentiment": "positive",
+            "confidence": 0.95,
+            "probabilities": {"positive": 0.95, "negative": 0.05}
+        }
     ]
     return mock
 
@@ -72,21 +85,37 @@ def mock_reddit_analyzer():
     mock.analyze_url = AsyncMock(return_value={
         "comments": [{"sentiment": "positive", "confidence": 0.95}],
         "overall_sentiment": {"positive": 75, "negative": 25},
-        "comments_analyzed": 1
+        "comments_analyzed": 1,
+        "post": {"title": "Test Post", "sentiment": "positive", "confidence": 0.95}
     })
     mock.analyze_subreddit = AsyncMock(return_value={
-        "posts": [],
-        "sentiment_distribution": {"positive": 60, "negative": 40}
+        "posts": [{"title": "Test Post", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 60, "negative": 40},
+        "average_confidence": 0.9
     })
     mock.analyze_user = AsyncMock(return_value={
-        "comments": [],
-        "sentiment_distribution": {"positive": 60, "negative": 40}
+        "comments": [{"text": "Test", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 60, "negative": 40},
+        "average_confidence": 0.9
     })
     mock.analyze_trend = AsyncMock(return_value={
         "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40}
+        "overall_sentiment": {"positive": 60, "negative": 40},
+        "subreddits_analyzed": 2
     })
     return mock
+
+@pytest.fixture(autouse=True)
+def setup_test_state(mock_model_service, mock_reddit_analyzer):
+    """Set up test state for all tests"""
+    app.state.model_service = mock_model_service
+    app.state.reddit_analyzer = mock_reddit_analyzer
+    yield
+    # Clean up after tests
+    if hasattr(app.state, 'model_service'):
+        delattr(app.state, 'model_service')
+    if hasattr(app.state, 'reddit_analyzer'):
+        delattr(app.state, 'reddit_analyzer')
 
 @pytest.fixture
 def app_with_mocks(mock_model_service, mock_reddit_analyzer):
@@ -103,14 +132,9 @@ def app_with_mocks(mock_model_service, mock_reddit_analyzer):
     return app
 
 @pytest.fixture
-def client(mock_model_service, mock_reddit_analyzer):
-    """Set up FastAPI test client with mocked dependencies"""
-    app.state.model_service = mock_model_service
-    app.state.reddit_analyzer = mock_reddit_analyzer
-    
-    client = TestClient(app)
-    
-    return client
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
 
 @pytest.fixture(autouse=True)
 def mock_torch_device():
