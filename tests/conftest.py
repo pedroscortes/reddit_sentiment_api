@@ -78,43 +78,32 @@ def mock_model_service():
     mock.predict_batch = mock_predict_batch
     return mock
 
-@pytest.fixture
-def mock_reddit_analyzer():
-    mock = Mock()
+@pytest.fixture(autouse=True)
+def mock_reddit_analyzer(monkeypatch):
+    """Mock RedditAnalyzer for all tests"""
+    mock_analyzer = AsyncMock()
+    mock_analyzer.analyze_trend.return_value = {
+        "trend_data": [],
+        "overall_sentiment": {"positive": 60, "negative": 40},
+        "subreddits_analyzed": 2
+    }
+    mock_analyzer.analyze_url.return_value = {
+        "comments": [{"sentiment": "positive", "confidence": 0.95}],
+        "overall_sentiment": {"positive": 75, "negative": 25},
+        "comments_analyzed": 1
+    }
+    mock_analyzer.analyze_subreddit.return_value = {
+        "posts": [{"title": "Test Post", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 60, "negative": 40},
+        "average_confidence": 0.9
+    }
+    mock_analyzer.analyze_user.return_value = {
+        "comments": [{"text": "Test", "sentiment": "positive"}],
+        "sentiment_distribution": {"positive": 60, "negative": 40},
+        "average_confidence": 0.9
+    }
     
-    async def mock_trend(*args, **kwargs):
-        return {
-            "trend_data": [],
-            "overall_sentiment": {"positive": 60, "negative": 40},
-            "subreddits_analyzed": 2
-        }
-    mock.analyze_trend = mock_trend
-
-    async def mock_url(*args, **kwargs):
-        return {
-            "comments": [{"sentiment": "positive", "confidence": 0.95}],
-            "overall_sentiment": {"positive": 75, "negative": 25},
-            "comments_analyzed": 1
-        }
-    mock.analyze_url = mock_url
-
-    async def mock_subreddit(*args, **kwargs):
-        return {
-            "posts": [{"title": "Test Post", "sentiment": "positive"}],
-            "sentiment_distribution": {"positive": 60, "negative": 40},
-            "average_confidence": 0.9
-        }
-    mock.analyze_subreddit = mock_subreddit
-
-    async def mock_user(*args, **kwargs):
-        return {
-            "comments": [{"text": "Test", "sentiment": "positive"}],
-            "sentiment_distribution": {"positive": 60, "negative": 40},
-            "average_confidence": 0.9
-        }
-    mock.analyze_user = mock_user
-
-    return mock
+    return mock_analyzer
 
 @pytest.fixture(autouse=True)
 def setup_test_state(mock_model_service, mock_reddit_analyzer):
@@ -122,7 +111,6 @@ def setup_test_state(mock_model_service, mock_reddit_analyzer):
     app.state.model_service = mock_model_service
     app.state.reddit_analyzer = mock_reddit_analyzer
     yield
-    # Clean up after tests
     if hasattr(app.state, 'model_service'):
         delattr(app.state, 'model_service')
     if hasattr(app.state, 'reddit_analyzer'):
