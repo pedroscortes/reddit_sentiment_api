@@ -95,16 +95,20 @@ def mock_reddit_analyzer():
 @pytest.fixture
 def client(mock_model_service, mock_reddit_analyzer):
     """Test client with mocked dependencies"""
-    app.state.model_service = mock_model_service
-    app.state.reddit_analyzer = mock_reddit_analyzer
+    from src.api.main import app
+    from fastapi.testclient import TestClient
     
-    with TestClient(app) as test_client:
-        yield test_client
+    def get_test_client():
+        app._state = {"_state": {
+            "model_service": mock_model_service,
+            "reddit_analyzer": mock_reddit_analyzer
+        }}
+        return TestClient(app)
     
-    if hasattr(app.state, 'model_service'):
-        delattr(app.state, 'model_service')
-    if hasattr(app.state, 'reddit_analyzer'):
-        delattr(app.state, 'reddit_analyzer')
+    test_client = get_test_client()
+    yield test_client
+    
+    app._state = {"_state": {}}
 
 @pytest.fixture(autouse=True)
 def mock_torch_device():
