@@ -72,9 +72,9 @@ def mock_model_service():
             "probabilities": {"positive": 0.95, "negative": 0.05}
         },
         {
-            "sentiment": "positive",
-            "confidence": 0.95,
-            "probabilities": {"positive": 0.95, "negative": 0.05}
+            "sentiment": "neutral",
+            "confidence": 0.9,
+            "probabilities": {"positive": 0.5, "negative": 0.5}
         }
     ]
     return mock
@@ -82,6 +82,12 @@ def mock_model_service():
 @pytest.fixture
 def mock_reddit_analyzer():
     mock = Mock()
+    trend_result = {
+        "trend_data": [],
+        "overall_sentiment": {"positive": 60, "negative": 40},
+        "subreddits_analyzed": 2
+    }
+    mock.analyze_trend = AsyncMock(return_value=trend_result)
     mock.analyze_url = AsyncMock(return_value={
         "comments": [{"sentiment": "positive", "confidence": 0.95}],
         "overall_sentiment": {"positive": 75, "negative": 25},
@@ -97,11 +103,6 @@ def mock_reddit_analyzer():
         "comments": [{"text": "Test", "sentiment": "positive"}],
         "sentiment_distribution": {"positive": 60, "negative": 40},
         "average_confidence": 0.9
-    })
-    mock.analyze_trend = AsyncMock(return_value={
-        "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40},
-        "subreddits_analyzed": 2
     })
     return mock
 

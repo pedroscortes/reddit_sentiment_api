@@ -231,6 +231,7 @@ def test_batch_prediction_mixed_content(client, mock_model_service):
     assert response.status_code == 200
 
     data = response.json()
+    assert "predictions" in data
     predictions = data["predictions"]
     assert len(predictions) == 2
     assert predictions[0]["sentiment"] == "positive"
