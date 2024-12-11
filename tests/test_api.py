@@ -79,12 +79,19 @@ def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
     
-    predict_mock = Mock(return_value={
+    from unittest.mock import MagicMock
+    
+    mock_result = MagicMock()
+    mock_result.sentiment = "positive"
+    mock_result.confidence = 0.9
+    mock_result.probabilities = {"positive": 0.9, "negative": 0.1}
+    mock_result.model_dump.return_value = {
         "sentiment": "positive",
         "confidence": 0.9,
         "probabilities": {"positive": 0.9, "negative": 0.1}
-    })
-    mock_model_service.predict = predict_mock
+    }
+    
+    mock_model_service.predict.return_value = mock_result
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")
@@ -92,6 +99,8 @@ def test_predict_endpoint(client, mock_model_service):
 
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
+    data = response.json()
+    assert data["sentiment"] == "positive"
 
 def test_predict_batch_endpoint(client):
     test_input = {"texts": ["This is test 1", "This is test 2"]}
@@ -229,18 +238,28 @@ def test_batch_prediction_mixed_content(client):
     """Test batch prediction with mixed content types."""
     test_texts = ["This is great!", "This is normal"]
 
-    def mock_predict_batch(texts):
-        return [
-            {
-                "sentiment": "positive" if i == 0 else "neutral",
-                "confidence": 0.9 if i == 0 else 0.6,
-                "probabilities": {"positive": 0.9, "negative": 0.1} if i == 0 else {"positive": 0.4, "negative": 0.6}
-            }
-            for i, _ in enumerate(texts)
-        ]
+    from unittest.mock import MagicMock
+    
+    mock_responses = []
+    for i, _ in enumerate(test_texts):
+        mock_result = MagicMock()
+        mock_result.sentiment = "positive" if i == 0 else "neutral"
+        mock_result.confidence = 0.9 if i == 0 else 0.6
+        mock_result.probabilities = (
+            {"positive": 0.9, "negative": 0.1}
+            if i == 0
+            else {"positive": 0.4, "negative": 0.6}
+        )
+        mock_result.model_dump.return_value = {
+            "sentiment": mock_result.sentiment,
+            "confidence": mock_result.confidence,
+            "probabilities": mock_result.probabilities
+        }
+        mock_responses.append(mock_result)
 
     mock_service = Mock()
-    mock_service.predict_batch = Mock(side_effect=mock_predict_batch)
+    mock_service.predict_batch.return_value = [r.model_dump() for r in mock_responses]
+    mock_service.predict.side_effect = lambda text: mock_responses[test_texts.index(text)]
 
     if hasattr(app.state, "model_service"):
         delattr(app.state, "model_service")

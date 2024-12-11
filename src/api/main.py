@@ -162,8 +162,14 @@ async def predict(input_data: TextInput, model_service: ModelService = Depends(g
 async def predict_batch(input_data: BatchInput, model_service: ModelService = Depends(get_model_service)):
     """Predict sentiment for multiple texts."""
     try:
-        predictions = model_service.predict_batch(input_data.texts)
-        return BatchPredictionResponse(predictions=[PredictionResponse(**p) if isinstance(p, dict) else p for p in predictions])
+        predictions = []
+        for text in input_data.texts:
+            result = model_service.predict(text)
+            if hasattr(result, 'model_dump'):
+                predictions.append(result.model_dump())
+            else:
+                predictions.append(result)
+        return BatchPredictionResponse(predictions=predictions)
     except Exception as e:
         logger.error(f"Error in batch prediction: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

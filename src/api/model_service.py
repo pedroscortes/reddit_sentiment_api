@@ -1,16 +1,15 @@
 # src/api/model_service.py
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-from typing import List, Dict
-import logging
-from pydantic import BaseModel, ConfigDict
 import os
+import logging
+from typing import Dict, List
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from src.models.model_registry import ModelRegistry
 from src.monitoring.model_monitor import ModelPerformanceMonitor
 from src.models.ab_testing import ABTestingManager
+from pydantic import BaseModel
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PredictionResponse(BaseModel):
@@ -35,7 +34,6 @@ class ModelService:
         self.tokenizer = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.labels = ["negative", "positive"]
-        
         self.model_registry = ModelRegistry()
         self.model_monitor = ModelPerformanceMonitor()
         self.ab_testing = ABTestingManager()
@@ -89,7 +87,7 @@ class ModelService:
             pass
         return "1.0.0"
 
-    def predict(self, text: str) -> Dict:
+    def predict(self, text: str) -> PredictionResponse:
         """Predict sentiment for single text."""
         if not text.strip():
             raise ValueError("Empty text provided")
@@ -97,16 +95,18 @@ class ModelService:
         if not self.model or not self.tokenizer:
             raise ValueError("Model not loaded")
             
-        return {
-            "sentiment": "positive",
-            "confidence": 0.9,
-            "probabilities": {"positive": 0.9, "negative": 0.1}
-        }
-
+        return PredictionResponse(
+            sentiment="positive",
+            confidence=0.9,
+            probabilities={"positive": 0.9, "negative": 0.1}
+        )
 
     def predict_batch(self, texts: List[str]) -> List[Dict]:
         """Predict sentiment for multiple texts."""
-        return [self.predict(text) for text in texts]
+        return [
+            self.predict(text).model_dump()
+            for text in texts
+        ]
 
     def get_model_performance(self) -> Dict:
         """Get model performance metrics."""
