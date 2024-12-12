@@ -88,14 +88,14 @@ def test_predict_endpoint(client, mock_model_service):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
     
-    response = PredictionResponse(
-        sentiment="positive",
-        confidence=0.9,
-        probabilities={"positive": 0.9, "negative": 0.1}
-    )
+    mock_response = {
+        "sentiment": "positive",
+        "confidence": 0.9,
+        "probabilities": {"positive": 0.9, "negative": 0.1}
+    }
     
     mock_service = Mock()
-    mock_service.predict.return_value = response
+    mock_service.predict.return_value = mock_response
     app.state.model_service = mock_service
 
     response = client.post("/predict", json=test_input)
@@ -107,18 +107,18 @@ def test_predict_batch_endpoint(client):
     test_input = {"texts": ["This is test 1", "This is test 2"]}
 
     mock_responses = [
-        PredictionResponse(
-            sentiment="positive",
-            confidence=0.9,
-            probabilities={"positive": 0.9, "negative": 0.1}
-        ),
-        PredictionResponse(
-            sentiment="negative",
-            confidence=0.8,
-            probabilities={"positive": 0.2, "negative": 0.8}
-        )
+        {
+            "sentiment": "positive",
+            "confidence": 0.9,
+            "probabilities": {"positive": 0.9, "negative": 0.1}
+        },
+        {
+            "sentiment": "negative",
+            "confidence": 0.8,
+            "probabilities": {"positive": 0.2, "negative": 0.8}
+        }
     ]
-    
+
     mock_service = Mock()
     mock_service.predict.side_effect = mock_responses
     app.state.model_service = mock_service
@@ -152,12 +152,8 @@ def test_analyze_trend_endpoint(client):
         "keyword": "python",
     }
 
-    async def mock_analyze_trend(*args, **kwargs):
-        return trend_response
-
-    mock_analyzer = AsyncMock()
-    mock_analyzer.analyze_trend = mock_analyze_trend
-
+    mock_analyzer = Mock()
+    mock_analyzer.analyze_trend = AsyncMock(return_value=trend_response)
     app.state.reddit_analyzer = mock_analyzer
 
     response = client.post("/analyze/trend", json=test_input)
@@ -275,16 +271,16 @@ def test_batch_prediction_mixed_content(client):
     test_input = {"texts": ["This is great!", "This is normal"]}
 
     mock_responses = [
-        PredictionResponse(
-            sentiment="positive",
-            confidence=0.9,
-            probabilities={"positive": 0.9, "negative": 0.1}
-        ),
-        PredictionResponse(
-            sentiment="neutral",
-            confidence=0.6,
-            probabilities={"positive": 0.4, "negative": 0.6}
-        )
+        {
+            "sentiment": "positive",
+            "confidence": 0.9,
+            "probabilities": {"positive": 0.9, "negative": 0.1}
+        },
+        {
+            "sentiment": "neutral",
+            "confidence": 0.6,
+            "probabilities": {"positive": 0.4, "negative": 0.6}
+        }
     ]
 
     mock_service = Mock()
