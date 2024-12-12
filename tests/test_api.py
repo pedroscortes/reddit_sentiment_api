@@ -95,10 +95,11 @@ def test_predict_endpoint(client):
                 "confidence": 0.9,
                 "probabilities": {"positive": 0.9, "negative": 0.1}
             }
-    
-    app.state.model_service = MockPredictService()
+
+    app.dependency_overrides[get_model_service] = lambda: MockPredictService()
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
+    app.dependency_overrides.clear()
 
 def test_predict_batch_endpoint(client):
     """Test batch prediction endpoint."""
@@ -111,10 +112,11 @@ def test_predict_batch_endpoint(client):
                 "confidence": 0.9,
                 "probabilities": {"positive": 0.9, "negative": 0.1}
             }
-    
-    app.state.model_service = MockPredictService()
+
+    app.dependency_overrides[get_model_service] = lambda: MockPredictService()
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
+    app.dependency_overrides.clear()
 
 def test_analyze_subreddit_endpoint(client):
     test_input = {"subreddit": "python", "time_filter": "week", "post_limit": 10}
@@ -128,28 +130,21 @@ def test_analyze_user_endpoint(client):
 
 def test_analyze_trend_endpoint(client):
     """Test trend analysis endpoint."""
-    test_input = {
-        "keyword": "python",
-        "subreddits": ["programming", "learnpython"],
-        "time_filter": "week",
-        "limit": 10
-    }
+    test_input = {"keyword": "python", "subreddits": ["programming", "learnpython"], "time_filter": "week", "limit": 10}
 
     class MockRedditAnalyzer:
-        def analyze_trend(self, keyword, subreddits, time_filter, limit):
-            trend_response = {
+        async def analyze_trend(self, keyword, subreddits, time_filter, limit):
+            return {
                 "trend_data": [],
                 "overall_sentiment": {"positive": 60, "negative": 40},
                 "subreddits_analyzed": 2,
                 "keyword": "python"
             }
-            async def async_response():
-                return trend_response
-            return async_response()
 
-    app.state.reddit_analyzer = MockRedditAnalyzer()
+    app.dependency_overrides[get_reddit_analyzer] = lambda: MockRedditAnalyzer()
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
+    app.dependency_overrides.clear()
 
 def test_predict_empty_text(client):
     test_input = {"text": ""}
@@ -275,7 +270,8 @@ def test_batch_prediction_mixed_content(client):
                 "confidence": 0.6,
                 "probabilities": {"positive": 0.4, "negative": 0.6}
             }
-    
-    app.state.model_service = MockPredictService()
+
+    app.dependency_overrides[get_model_service] = lambda: MockPredictService()
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
+    app.dependency_overrides.clear()
