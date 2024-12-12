@@ -84,20 +84,19 @@ def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
 
-def test_predict_endpoint(client, mock_model_service):
+def test_predict_endpoint(client):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
-    
-    mock_response = {
-        "sentiment": "positive",
-        "confidence": 0.9,
-        "probabilities": {"positive": 0.9, "negative": 0.1}
-    }
-    
-    mock_service = Mock()
-    mock_service.predict.return_value = mock_response
-    app.state.model_service = mock_service
 
+    class MockModelService:
+        def predict(self, text):
+            return {
+                "sentiment": "positive",
+                "confidence": 0.9,
+                "probabilities": {"positive": 0.9, "negative": 0.1}
+            }
+
+    app.state.model_service = MockModelService()
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
 
@@ -106,23 +105,15 @@ def test_predict_batch_endpoint(client):
     """Test batch prediction endpoint."""
     test_input = {"texts": ["This is test 1", "This is test 2"]}
 
-    mock_responses = [
-        {
-            "sentiment": "positive",
-            "confidence": 0.9,
-            "probabilities": {"positive": 0.9, "negative": 0.1}
-        },
-        {
-            "sentiment": "negative",
-            "confidence": 0.8,
-            "probabilities": {"positive": 0.2, "negative": 0.8}
-        }
-    ]
+    class MockModelService:
+        def predict(self, text):
+            return {
+                "sentiment": "positive",
+                "confidence": 0.9,
+                "probabilities": {"positive": 0.9, "negative": 0.1}
+            }
 
-    mock_service = Mock()
-    mock_service.predict.side_effect = mock_responses
-    app.state.model_service = mock_service
-
+    app.state.model_service = MockModelService()
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
 
@@ -145,17 +136,16 @@ def test_analyze_trend_endpoint(client):
         "limit": 10
     }
 
-    trend_response = {
-        "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40},
-        "subreddits_analyzed": 2,
-        "keyword": "python",
-    }
+    class MockRedditAnalyzer:
+        async def analyze_trend(self, keyword, subreddits, time_filter, limit):
+            return {
+                "trend_data": [],
+                "overall_sentiment": {"positive": 60, "negative": 40},
+                "subreddits_analyzed": 2,
+                "keyword": "python"
+            }
 
-    mock_analyzer = Mock()
-    mock_analyzer.analyze_trend = AsyncMock(return_value=trend_response)
-    app.state.reddit_analyzer = mock_analyzer
-
+    app.state.reddit_analyzer = MockRedditAnalyzer()
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
 
@@ -270,22 +260,20 @@ def test_batch_prediction_mixed_content(client):
     """Test batch prediction with mixed content types."""
     test_input = {"texts": ["This is great!", "This is normal"]}
 
-    mock_responses = [
-        {
-            "sentiment": "positive",
-            "confidence": 0.9,
-            "probabilities": {"positive": 0.9, "negative": 0.1}
-        },
-        {
-            "sentiment": "neutral",
-            "confidence": 0.6,
-            "probabilities": {"positive": 0.4, "negative": 0.6}
-        }
-    ]
+    class MockModelService:
+        def predict(self, text):
+            if "great" in text.lower():
+                return {
+                    "sentiment": "positive",
+                    "confidence": 0.9,
+                    "probabilities": {"positive": 0.9, "negative": 0.1}
+                }
+            return {
+                "sentiment": "neutral",
+                "confidence": 0.6,
+                "probabilities": {"positive": 0.4, "negative": 0.6}
+            }
 
-    mock_service = Mock()
-    mock_service.predict.side_effect = mock_responses
-    app.state.model_service = mock_service
-
+    app.state.model_service = MockModelService()
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
