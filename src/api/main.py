@@ -150,7 +150,8 @@ async def predict(input_data: TextInput, model_service: ModelService = Depends(g
     """Predict sentiment for a single text."""
     try:
         result = model_service.predict(input_data.text)
-        return PredictionResponse(**result) if isinstance(result, dict) else result
+        result_dict = result.dict() if hasattr(result, 'dict') else result
+        return PredictionResponse(**result_dict)
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -162,8 +163,8 @@ async def predict_batch(input_data: BatchInput, model_service: ModelService = De
         predictions = []
         for text in input_data.texts:
             result = model_service.predict(text)
-            prediction = PredictionResponse(**result) if isinstance(result, dict) else result
-            predictions.append(prediction)
+            result_dict = result.dict() if hasattr(result, 'dict') else result
+            predictions.append(result_dict)
         return BatchPredictionResponse(predictions=predictions)
     except Exception as e:
         logger.error(f"Error in batch prediction: {str(e)}", exc_info=True)
