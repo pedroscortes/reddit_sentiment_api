@@ -88,15 +88,14 @@ def test_predict_endpoint(client):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
     
-    class MockModelService:
-        def predict(self, text):
-            return PredictionResponse(
-                sentiment="positive",
-                confidence=0.9,
-                probabilities={"positive": 0.9, "negative": 0.1}
-            )
+    mock_service = Mock()
+    mock_service.predict.return_value = {
+        "sentiment": "positive",
+        "confidence": 0.9,
+        "probabilities": {"positive": 0.9, "negative": 0.1}
+    }
     
-    app.state.model_service = MockModelService()
+    app.state.model_service = mock_service
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
     assert response.json() == {
@@ -106,10 +105,11 @@ def test_predict_endpoint(client):
     }
 
 
+
 def test_predict_batch_endpoint(client):
     """Test batch prediction endpoint."""
     test_input = {"texts": ["This is test 1", "This is test 2"]}
-
+    
     mock_service = Mock()
     mock_service.predict.side_effect = [
         {
@@ -124,7 +124,6 @@ def test_predict_batch_endpoint(client):
         }
     ]
     app.state.model_service = mock_service
-
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
 
@@ -147,17 +146,19 @@ def test_analyze_trend_endpoint(client):
         "limit": 10
     }
 
-    mock_analyzer = Mock()
-    mock_analyzer.analyze_trend = AsyncMock(return_value={
-        "trend_data": [],
-        "overall_sentiment": {"positive": 60, "negative": 40},
-        "subreddits_analyzed": 2,
-        "keyword": "python"
-    })
+    class MockAsyncAnalyzer:
+        async def analyze_trend(self, *args, **kwargs):
+            return {
+                "trend_data": [],
+                "overall_sentiment": {"positive": 60, "negative": 40},
+                "subreddits_analyzed": 2,
+                "keyword": "python"
+            }
 
-    app.state.reddit_analyzer = mock_analyzer
+    app.state.reddit_analyzer = MockAsyncAnalyzer()
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
+
 def test_predict_empty_text(client):
     test_input = {"text": ""}
     response = client.post("/predict", json=test_input)

@@ -99,13 +99,13 @@ def setup_reddit_analyzer(monkeypatch, mock_reddit_analyzer):
 @pytest.fixture(autouse=True)
 def setup_test_state(mock_model_service, mock_reddit_analyzer):
     """Set up test state for all tests"""
-    app.state.model_service = mock_model_service
-    app.state.reddit_analyzer = mock_reddit_analyzer
-    yield
     if hasattr(app.state, 'model_service'):
         delattr(app.state, 'model_service')
     if hasattr(app.state, 'reddit_analyzer'):
         delattr(app.state, 'reddit_analyzer')
+    app.state.model_service = mock_model_service
+    app.state.reddit_analyzer = mock_reddit_analyzer
+    yield
 
 @pytest.fixture
 def app_with_mocks(mock_model_service, mock_reddit_analyzer):
