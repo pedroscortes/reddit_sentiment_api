@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from src.api.main import app
+from src.api.main import app, get_model_service, get_reddit_analyzer
 from src.api.model_service import PredictionResponse
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
