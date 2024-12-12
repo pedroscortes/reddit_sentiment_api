@@ -87,35 +87,41 @@ def test_health_check(client):
 def test_predict_endpoint(client):
     """Test single prediction endpoint."""
     test_input = {"text": "This is a test message"}
-
+    
     class MockModelService:
         def predict(self, text):
-            return {
-                "sentiment": "positive",
-                "confidence": 0.9,
-                "probabilities": {"positive": 0.9, "negative": 0.1}
-            }
-
+            return PredictionResponse(
+                sentiment="positive",
+                confidence=0.9,
+                probabilities={"positive": 0.9, "negative": 0.1}
+            )
+    
     app.state.model_service = MockModelService()
     response = client.post("/predict", json=test_input)
     assert response.status_code == 200
+    assert response.json() == {
+        "sentiment": "positive",
+        "confidence": 0.9,
+        "probabilities": {"positive": 0.9, "negative": 0.1}
+    }
 
 
 def test_predict_batch_endpoint(client):
     """Test batch prediction endpoint."""
     test_input = {"texts": ["This is test 1", "This is test 2"]}
-
+    
     class MockModelService:
         def predict(self, text):
-            return {
-                "sentiment": "positive",
-                "confidence": 0.9,
-                "probabilities": {"positive": 0.9, "negative": 0.1}
-            }
-
+            return PredictionResponse(
+                sentiment="positive",
+                confidence=0.9,
+                probabilities={"positive": 0.9, "negative": 0.1}
+            )
+    
     app.state.model_service = MockModelService()
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
+    assert len(response.json()["predictions"]) == 2
 
 def test_analyze_subreddit_endpoint(client):
     test_input = {"subreddit": "python", "time_filter": "week", "post_limit": 10}
@@ -135,16 +141,16 @@ def test_analyze_trend_endpoint(client):
         "time_filter": "week",
         "limit": 10
     }
-
+    
     class MockRedditAnalyzer:
-        async def analyze_trend(self, keyword, subreddits, time_filter, limit):
+        async def analyze_trend(self, *args, **kwargs):
             return {
                 "trend_data": [],
                 "overall_sentiment": {"positive": 60, "negative": 40},
                 "subreddits_analyzed": 2,
                 "keyword": "python"
             }
-
+    
     app.state.reddit_analyzer = MockRedditAnalyzer()
     response = client.post("/analyze/trend", json=test_input)
     assert response.status_code == 200
@@ -259,21 +265,18 @@ def test_metrics_endpoint(client, monkeypatch):
 def test_batch_prediction_mixed_content(client):
     """Test batch prediction with mixed content types."""
     test_input = {"texts": ["This is great!", "This is normal"]}
-
+    
     class MockModelService:
         def predict(self, text):
-            if "great" in text.lower():
-                return {
-                    "sentiment": "positive",
-                    "confidence": 0.9,
-                    "probabilities": {"positive": 0.9, "negative": 0.1}
-                }
-            return {
-                "sentiment": "neutral",
-                "confidence": 0.6,
-                "probabilities": {"positive": 0.4, "negative": 0.6}
-            }
-
+            sentiment = "positive" if "great" in text.lower() else "neutral"
+            confidence = 0.9 if "great" in text.lower() else 0.6
+            prob_pos = 0.9 if "great" in text.lower() else 0.4
+            return PredictionResponse(
+                sentiment=sentiment,
+                confidence=confidence,
+                probabilities={"positive": prob_pos, "negative": 1 - prob_pos}
+            )
+    
     app.state.model_service = MockModelService()
     response = client.post("/predict/batch", json=test_input)
     assert response.status_code == 200
