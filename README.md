@@ -145,3 +145,5 @@ sentiment-analysis-api/
 - **Testing**: pytest
 - **Container**: Docker
 - **Documentation**: FastAPI Swagger UI
+
+Feel free for opening PRs or giving me any suggestions!
